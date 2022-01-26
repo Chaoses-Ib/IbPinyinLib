@@ -19,7 +19,7 @@ namespace pinyin
     using Char = char32_t;
     using String = std::u32string;
     using StringView = std::u32string_view;
-#define IB_PINYIN_LITERAL U##s
+#define IB_PINYIN_LITERAL(s) U##s
 #endif
     char32_t read_char32(const Char* str, int* length);
 
@@ -63,6 +63,9 @@ namespace pinyin
 
     // return 0xFFFF if failed
     uint16_t get_pinyin_index(char32_t hanzi);
+
+    // return 0 if failed
+    uint32_t get_pinyin_initials(char32_t hanzi);
 
     // return 0 if no match
     size_t match_pinyin(StringView pinyin, char32_t hanzi, PinyinFlagValue flags);

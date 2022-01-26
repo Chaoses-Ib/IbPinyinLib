@@ -46,6 +46,30 @@ namespace pinyin {
         return 0xFFFF;
     }
 
+    uint32_t get_pinyin_initials(char32_t hanzi)
+    {
+        uint32_t initials;
+
+        uint16_t index = get_pinyin_index(hanzi);
+        if (index == 0xFFFF)
+            return 0;
+
+        size_t size;
+        if (index < std::size(pinyins)) {
+            initials = 1 << (pinyins[index].initial - 'a');
+        }
+        else {
+            initials = 0;
+            index -= std::size(pinyins);
+            auto comb = pinyin_combinations[index];
+            for (uint16_t i = 0; i < comb.n; i++) {
+                initials |= 1 << (pinyins[comb.pinyin[i]].initial - 'a');
+            }
+        }
+
+        return initials;
+    }
+
     size_t match_pinyin(StringView string, char32_t hanzi, PinyinFlagValue flags) {
         auto starts_with = [](StringView s1, StringView s2) -> size_t {
             if (s1.rfind(s2, 0) == 0)
