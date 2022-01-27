@@ -1,5 +1,9 @@
 ﻿#include "pch.h"
+#include <algorithm>
+#include <cassert>
 #include "Pinyin.hpp"
+
+#define LITERAL(s) IB_PINYIN_LITERAL(s)
 
 namespace pinyin {
 #if IB_PINYIN_ENCODING == 8
@@ -30,12 +34,209 @@ namespace pinyin {
     }
 #endif
 
-    Pinyin::Pinyin(StringView pinyin, StringView pinyin_ascii_digit, StringView double_pinyin_xiaohe)
-      : pinyin(pinyin),
-        pinyin_ascii(pinyin_ascii_digit.substr(0, pinyin_ascii_digit.size() - 1)),
-        pinyin_ascii_digit(pinyin_ascii_digit),
-        double_pinyin_xiaohe(double_pinyin_xiaohe),
-        initial(pinyin_ascii_digit[0]) {}
+    Pinyin::Pinyin(StringView pinyin) : pinyin(pinyin), initial_letter('\0') {}
+
+    void Pinyin::init(PinyinFlagValue flags)
+    {
+        if (flags & PinyinFlag::PinyinAsciiDigit || flags & PinyinFlag::PinyinAscii) {
+            pinyin_ascii_digit = to_pinyin_ascii_digit();
+            pinyin_ascii = StringView(pinyin_ascii_digit).substr(0, pinyin_ascii_digit.size() - 1);
+        }
+        if (flags & PinyinFlag::InitialLetter)
+            initial_letter = to_initial_letter();
+        if (flags & PinyinFlag::DoublePinyinXiaohe)
+            double_pinyin_xiaohe = to_double_pinyin_xiaohe();
+    }
+
+    void Pinyin::destroy()
+    {
+        pinyin_ascii_digit = {};
+        pinyin_ascii = {};
+        double_pinyin_xiaohe = {};
+    }
+
+    String Pinyin::convert(const std::unordered_map<StringView, StringView>& pinyin_map, const std::unordered_map<StringView, StringView>& initial_map, const std::unordered_map<StringView, StringView>& final_map) const
+    {
+        StringView ascii;
+        String ascii_s;
+        if (pinyin_ascii.empty()) {
+            ascii_s = to_pinyin_ascii();
+            ascii = ascii_s;
+        }
+        else
+            ascii = pinyin_ascii;
+
+        if (ascii == LITERAL("hm"))  // 噷
+            ascii = LITERAL("hen");
+        else if (ascii == LITERAL("hng"))  // 哼
+            ascii = LITERAL("heng");
+        else if (ascii == LITERAL("m"))  // 呒呣嘸
+            ascii = LITERAL("mu");
+        else if (ascii == LITERAL("n") || ascii == LITERAL("ng"))  // 唔嗯 㕶 𠮾
+            ascii = LITERAL("en");
+        
+        if (auto it = pinyin_map.find(ascii); it != pinyin_map.end())
+            return String(it->second);
+
+        String result;
+        for (size_t size = ascii.size(); size; size--) {
+            if (auto it = initial_map.find(ascii.substr(0, size)); it != initial_map.end()) {
+                ascii = ascii.substr(size);
+                result = it->second;
+                break;
+            }
+        }
+
+        auto it = final_map.find(ascii);
+        assert(it != final_map.end());
+        result += it->second;
+
+        return result;
+    }
+
+    String Pinyin::to_pinyin_ascii_digit() const
+    {
+        String ascii_digit = to_pinyin_ascii();
+
+        static StringView t1[] = { LITERAL("ā"), LITERAL("ē"), LITERAL("ī"), LITERAL("ō"),
+            LITERAL("ū"), LITERAL("ê̄") };
+        static StringView t2[] = { LITERAL("á"), LITERAL("é"), LITERAL("ế"), LITERAL("í"), 
+            LITERAL("ó"), LITERAL("ú"), LITERAL("ǘ"), LITERAL("ḿ"), LITERAL("ń") };
+        static StringView t3[] = { LITERAL("ǎ"), LITERAL("ě"), LITERAL("ǐ"), LITERAL("ǒ"),
+            LITERAL("ǔ"), LITERAL("ǚ"), LITERAL("ň"), LITERAL("ê̌") };
+        static StringView t4[] = { LITERAL("à"), LITERAL("è"), LITERAL("ề"), LITERAL("ì"),
+            LITERAL("ò"), LITERAL("ù"), LITERAL("ǜ"), LITERAL("ǹ"), LITERAL("m̀") };
+
+        auto test = [this](StringView* t, size_t n) {
+            for (size_t i = 0; i < n; i++) {
+                if (std::search(pinyin.begin(), pinyin.end(), t[i].begin(), t[i].end()) != pinyin.end())
+                    return true;
+            }
+            return false;
+        };
+        if (test(t1, std::size(t1))) return ascii_digit + Char('1');
+        if (test(t2, std::size(t2))) return ascii_digit + Char('2');
+        if (test(t3, std::size(t3))) return ascii_digit + Char('3');
+        if (test(t4, std::size(t4))) return ascii_digit + Char('4');
+        return ascii_digit + Char('5');
+    }
+
+    String Pinyin::to_pinyin_ascii() const
+    {
+        StringView py = pinyin;
+        String ascii;
+        while (py.size()) {
+            Char c = py[0];
+            if ('a' <= c && c <= 'z') {
+                int length;
+                if (c == 'm' && py.size() > 1 && read_char32(py.data() + 1, &length) == U'̀') {
+                    ascii.push_back('m');
+                    py = py.substr(1 + length);
+                    continue;
+                }
+                ascii.push_back(c);
+                py = py.substr(1);
+            }
+            else {
+                static StringView t_a[] = { LITERAL("ā"), LITERAL("á"), LITERAL("ǎ"), LITERAL("à") };
+                static StringView t_e[] = { LITERAL("ē"), LITERAL("é"), LITERAL("ě"), LITERAL("è"), LITERAL("ế"), LITERAL("ề"), LITERAL("ê̄"), LITERAL("ê̌") };
+                static StringView t_i[] = { LITERAL("ī"), LITERAL("í"), LITERAL("ǐ"), LITERAL("ì") };
+                static StringView t_o[] = { LITERAL("ō"), LITERAL("ó"), LITERAL("ǒ"), LITERAL("ò") };
+                static StringView t_u[] = { LITERAL("ū"), LITERAL("ú"), LITERAL("ǔ"), LITERAL("ù") };
+                static StringView t_v[] = { LITERAL("ü"), LITERAL("ǘ"), LITERAL("ǚ"), LITERAL("ǜ") };
+                static StringView t_n[] = { LITERAL("ń"), LITERAL("ň"), LITERAL("ǹ") };
+                static StringView t_m[] = { LITERAL("ḿ") };  // LITERAL("m̀")
+
+                auto test = [&py, &ascii](StringView* t, size_t n, Char c) {
+                    for (size_t i = 0; i < n; i++) {
+                        if (py.substr(0, t[i].size()) == t[i]) {
+                            ascii.push_back(c);
+                            py = py.substr(t[i].size());
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+                if (test(t_a, std::size(t_a), 'a'));
+                else if (test(t_e, std::size(t_e), 'e'));
+                else if (test(t_i, std::size(t_i), 'i'));
+                else if (test(t_o, std::size(t_o), 'o'));
+                else if (test(t_u, std::size(t_u), 'u'));
+                else if (test(t_v, std::size(t_v), 'v'));
+                else if (test(t_n, std::size(t_n), 'n'));
+                else if (test(t_m, std::size(t_m), 'm'));
+                else
+                    assert(false);
+            }
+        }
+        return ascii;
+    }
+
+    Char Pinyin::to_initial_letter() const
+    {
+        if (pinyin_ascii.size())
+            return pinyin_ascii[0];
+
+        //#TODO: could be optimized
+        String ascii = to_pinyin_ascii();
+        return ascii[0];
+    }
+
+    String Pinyin::to_double_pinyin_xiaohe() const
+    {
+#define ITEM(k, v) { LITERAL(#k), LITERAL(#v) }
+        static std::unordered_map<StringView, StringView> pinyin_map{
+            ITEM(e, ee), ITEM(o, oo),
+            ITEM(a, aa),
+            ITEM(ei, ei),
+            ITEM(ai, ai),
+            ITEM(ou, ou),
+            ITEM(ao, ao),
+            ITEM(en, en),
+            ITEM(an, an),
+            ITEM(eng, eg),
+            ITEM(ang, ah)
+        };
+        static std::unordered_map<StringView, StringView> initial_map{
+            ITEM(b, b), ITEM(p, p), ITEM(m, m), ITEM(f, f),
+            ITEM(d, d), ITEM(t, t), ITEM(n, n), ITEM(z, z), ITEM(c, c), ITEM(s, s), ITEM(l, l),
+            ITEM(zh, v), ITEM(ch, i), ITEM(sh, u), ITEM(r, r),
+            ITEM(j, j), ITEM(q, q), ITEM(x, x),
+            ITEM(g, g), ITEM(k, k), ITEM(h, h),
+            ITEM(y, y), ITEM(w, w)
+        };
+        static std::unordered_map<StringView, StringView> final_map{
+            ITEM(i, i), ITEM(u, u), ITEM(v, v),
+            ITEM(e, e), ITEM(ie, p), ITEM(o, o), ITEM(uo, o), ITEM(ue, t), ITEM(ve, t),
+            ITEM(a, a), ITEM(ia, x), ITEM(ua, x),
+            ITEM(ei, w), ITEM(ui, v),
+            ITEM(ai, d), ITEM(uai, k),
+            ITEM(ou, z), ITEM(iu, q),
+            ITEM(ao, c), ITEM(iao, n),
+            ITEM(in, b), ITEM(un, y), ITEM(vn, y),
+            ITEM(en, f),
+            ITEM(an, j), ITEM(ian, m), ITEM(uan, r), ITEM(van, r),
+            ITEM(ing, k),
+            ITEM(ong, s), ITEM(iong, s),
+            ITEM(eng, g),
+            ITEM(ang, h), ITEM(iang, l), ITEM(uang, l),
+            ITEM(er, er)
+        };
+#undef ITEM
+        return convert(pinyin_map, initial_map, final_map);
+    }
+
+    void init(PinyinFlagValue flags)
+    {
+        for (Pinyin& py : pinyins)
+            py.init(flags);
+    }
+
+    void destroy()
+    {
+        for (Pinyin& py : pinyins)
+            py.destroy();
+    }
 
     uint16_t get_pinyin_index(char32_t hanzi) {
         for (PinyinRange range : pinyin_ranges) {
@@ -45,8 +246,8 @@ namespace pinyin {
         }
         return 0xFFFF;
     }
-
-    uint32_t get_pinyin_initials(char32_t hanzi)
+    
+    uint32_t get_initial_pinyin_letters(char32_t hanzi)
     {
         uint32_t initials;
 
@@ -56,21 +257,21 @@ namespace pinyin {
 
         size_t size;
         if (index < std::size(pinyins)) {
-            initials = 1 << (pinyins[index].initial - 'a');
+            initials = 1 << (pinyins[index].initial_letter - 'a');
         }
         else {
             initials = 0;
             index -= std::size(pinyins);
             auto comb = pinyin_combinations[index];
             for (uint16_t i = 0; i < comb.n; i++) {
-                initials |= 1 << (pinyins[comb.pinyin[i]].initial - 'a');
+                initials |= 1 << (pinyins[comb.pinyin[i]].initial_letter - 'a');
             }
         }
 
         return initials;
     }
 
-    size_t match_pinyin(StringView string, char32_t hanzi, PinyinFlagValue flags) {
+    size_t match_pinyin(char32_t hanzi, StringView string, PinyinFlagValue flags) {
         auto starts_with = [](StringView s1, StringView s2) -> size_t {
             if (s1.rfind(s2, 0) == 0)
                 return s2.size();
@@ -95,8 +296,8 @@ namespace pinyin {
                 if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
                     return size;
             }
-            if (flags & PinyinFlag::Initial) {
-                if (string.size() && string[0] == pinyin.initial)
+            if (flags & PinyinFlag::InitialLetter) {
+                if (string.size() && string[0] == pinyin.initial_letter)
                     return 1;
             }
             return 0;
