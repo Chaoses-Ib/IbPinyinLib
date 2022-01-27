@@ -44,8 +44,19 @@ namespace pinyin {
         }
         if (flags & PinyinFlag::InitialLetter)
             initial_letter = to_initial_letter();
+
+        if (flags & PinyinFlag::DoublePinyinAbc)
+            double_pinyin_abc = to_double_pinyin_abc();
+        if (flags & PinyinFlag::DoublePinyinJiajia)
+            double_pinyin_jiajia = to_double_pinyin_jiajia();
+        if (flags & PinyinFlag::DoublePinyinMicrosoft)
+            double_pinyin_microsoft = to_double_pinyin_microsoft();
+        if (flags & PinyinFlag::DoublePinyinThunisoft)
+            double_pinyin_thunisoft = to_double_pinyin_thunisoft();
         if (flags & PinyinFlag::DoublePinyinXiaohe)
             double_pinyin_xiaohe = to_double_pinyin_xiaohe();
+        if (flags & PinyinFlag::DoublePinyinZrm)
+            double_pinyin_zrm = to_double_pinyin_zrm();
     }
 
     void Pinyin::destroy()
@@ -276,15 +287,15 @@ namespace pinyin {
                     return size;
             }
             if (flags & PinyinFlag::DoublePinyinJiajia) {
-                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                if (size = starts_with(string, pinyin.double_pinyin_jiajia))
                     return size;
             }
             if (flags & PinyinFlag::DoublePinyinMicrosoft) {
-                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                if (size = starts_with(string, pinyin.double_pinyin_microsoft))
                     return size;
             }
             if (flags & PinyinFlag::DoublePinyinThunisoft) {
-                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                if (size = starts_with(string, pinyin.double_pinyin_thunisoft))
                     return size;
             }
             if (flags & PinyinFlag::DoublePinyinXiaohe) {
@@ -292,7 +303,7 @@ namespace pinyin {
                     return size;
             }
             if (flags & PinyinFlag::DoublePinyinZrm) {
-                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                if (size = starts_with(string, pinyin.double_pinyin_zrm))
                     return size;
             }
 
