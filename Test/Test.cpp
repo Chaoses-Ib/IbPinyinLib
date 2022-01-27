@@ -5,9 +5,7 @@
 #include "../PinyinLib/Pinyin.hpp"
 
 BOOST_AUTO_TEST_CASE(MatchPinyin) {
-    pinyin::PinyinFlagValue flags = pinyin::PinyinFlag::Pinyin
-        | pinyin::PinyinFlag::PinyinAsciiDigit | pinyin::PinyinFlag::PinyinAscii | pinyin::PinyinFlag::InitialLetter
-        | pinyin::PinyinFlag::DoublePinyinXiaohe;
+    pinyin::PinyinFlagValue flags = pinyin::PinyinFlag::All;
     pinyin::init(flags);
 
     BOOST_CHECK(pinyin::match_pinyin(U'拼', U"pīnyīn", pinyin::PinyinFlag::Pinyin) == 3);

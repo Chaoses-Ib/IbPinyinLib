@@ -27,11 +27,17 @@ namespace pinyin
     using PinyinFlagValue = int;
     struct PinyinFlag {
         using T = const PinyinFlagValue;
-        static T Pinyin = 1;
-        static T PinyinAsciiDigit = 2;
-        static T PinyinAscii = 4;
-        static T InitialLetter = 8;
-        static T DoublePinyinXiaohe = 16;
+        static T Pinyin = 0x1;
+        static T PinyinAsciiDigit = 0x2;
+        static T PinyinAscii = 0x4;
+        static T InitialLetter = 0x8;
+        static T DoublePinyinAbc = 0x10;  // 智能 ABC 双拼
+        static T DoublePinyinJiajia = 0x20; // 拼音加加双拼
+        static T DoublePinyinMicrosoft = 0x40;  // 微软双拼
+        static T DoublePinyinThunisoft = 0x80;  // 华宇双拼（紫光双拼）
+        static T DoublePinyinXiaohe = 0x100;  // 小鹤双拼
+        static T DoublePinyinZrm = 0x200;  // 自然码双拼
+        static T All = 0xFFFFFFFF;
     };
     struct Pinyin {
         const StringView pinyin;
@@ -40,7 +46,12 @@ namespace pinyin
         StringView pinyin_ascii;
         Char initial_letter;
         
+        String double_pinyin_abc;
+        String double_pinyin_jiajia;
+        String double_pinyin_microsoft;
+        String double_pinyin_thunisoft;
         String double_pinyin_xiaohe;
+        String double_pinyin_zrm;
     
         Pinyin(StringView pinyin);
 
@@ -57,6 +68,8 @@ namespace pinyin
             "j", "q", "x",
             "g", "k", "h",
             "y", "w"
+        } or {
+            "zh", "ch", "sh"
         }
         finals = {
             "i", "u", "v",
@@ -84,7 +97,12 @@ namespace pinyin
         String to_pinyin_ascii_digit() const;
         String to_pinyin_ascii() const;
         Char to_initial_letter() const;
+        String to_double_pinyin_abc() const;
+        String to_double_pinyin_jiajia() const;
+        String to_double_pinyin_microsoft() const;
+        String to_double_pinyin_thunisoft() const;
         String to_double_pinyin_xiaohe() const;
+        String to_double_pinyin_zrm() const;
     };
 
 #pragma pack(push, 2)

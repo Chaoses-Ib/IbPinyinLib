@@ -79,11 +79,33 @@ namespace pinyin {
             return String(it->second);
 
         String result;
-        for (size_t size = ascii.size(); size; size--) {
-            if (auto it = initial_map.find(ascii.substr(0, size)); it != initial_map.end()) {
-                ascii = ascii.substr(size);
+        if (ascii.size() >= 2) {
+            StringView first_two = ascii.substr(0, 2);
+            if (first_two == LITERAL("zh") || first_two == LITERAL("ch") || first_two == LITERAL("sh")) {
+                auto it = initial_map.find(first_two);
+                assert(it != initial_map.end());
                 result = it->second;
-                break;
+
+                ascii = ascii.substr(2);
+            }
+            else
+                goto single_initial;
+        }
+        else {
+        single_initial:
+            if (initial_map.size() == 3) {
+                Char c = ascii[0];
+                if (c != 'a' && c != 'e' && c != 'i' && c != 'o' && c != 'u' && c != 'v') {
+                    result = c;
+                    ascii = ascii.substr(1);
+                } 
+            }
+            else {
+                auto it = initial_map.find(ascii.substr(0, 1));
+                assert(it != initial_map.end());
+                result = it->second;
+
+                ascii = ascii.substr(1);
             }
         }
 
@@ -182,50 +204,6 @@ namespace pinyin {
         return ascii[0];
     }
 
-    String Pinyin::to_double_pinyin_xiaohe() const
-    {
-#define ITEM(k, v) { LITERAL(#k), LITERAL(#v) }
-        static std::unordered_map<StringView, StringView> pinyin_map{
-            ITEM(e, ee), ITEM(o, oo),
-            ITEM(a, aa),
-            ITEM(ei, ei),
-            ITEM(ai, ai),
-            ITEM(ou, ou),
-            ITEM(ao, ao),
-            ITEM(en, en),
-            ITEM(an, an),
-            ITEM(eng, eg),
-            ITEM(ang, ah)
-        };
-        static std::unordered_map<StringView, StringView> initial_map{
-            ITEM(b, b), ITEM(p, p), ITEM(m, m), ITEM(f, f),
-            ITEM(d, d), ITEM(t, t), ITEM(n, n), ITEM(z, z), ITEM(c, c), ITEM(s, s), ITEM(l, l),
-            ITEM(zh, v), ITEM(ch, i), ITEM(sh, u), ITEM(r, r),
-            ITEM(j, j), ITEM(q, q), ITEM(x, x),
-            ITEM(g, g), ITEM(k, k), ITEM(h, h),
-            ITEM(y, y), ITEM(w, w)
-        };
-        static std::unordered_map<StringView, StringView> final_map{
-            ITEM(i, i), ITEM(u, u), ITEM(v, v),
-            ITEM(e, e), ITEM(ie, p), ITEM(o, o), ITEM(uo, o), ITEM(ue, t), ITEM(ve, t),
-            ITEM(a, a), ITEM(ia, x), ITEM(ua, x),
-            ITEM(ei, w), ITEM(ui, v),
-            ITEM(ai, d), ITEM(uai, k),
-            ITEM(ou, z), ITEM(iu, q),
-            ITEM(ao, c), ITEM(iao, n),
-            ITEM(in, b), ITEM(un, y), ITEM(vn, y),
-            ITEM(en, f),
-            ITEM(an, j), ITEM(ian, m), ITEM(uan, r), ITEM(van, r),
-            ITEM(ing, k),
-            ITEM(ong, s), ITEM(iong, s),
-            ITEM(eng, g),
-            ITEM(ang, h), ITEM(iang, l), ITEM(uang, l),
-            ITEM(er, er)
-        };
-#undef ITEM
-        return convert(pinyin_map, initial_map, final_map);
-    }
-
     void init(PinyinFlagValue flags)
     {
         for (Pinyin& py : pinyins)
@@ -292,10 +270,32 @@ namespace pinyin {
                 if (size = starts_with(string, pinyin.pinyin_ascii))
                     return size;
             }
+
+            if (flags & PinyinFlag::DoublePinyinAbc) {
+                if (size = starts_with(string, pinyin.double_pinyin_abc))
+                    return size;
+            }
+            if (flags & PinyinFlag::DoublePinyinJiajia) {
+                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                    return size;
+            }
+            if (flags & PinyinFlag::DoublePinyinMicrosoft) {
+                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                    return size;
+            }
+            if (flags & PinyinFlag::DoublePinyinThunisoft) {
+                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                    return size;
+            }
             if (flags & PinyinFlag::DoublePinyinXiaohe) {
                 if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
                     return size;
             }
+            if (flags & PinyinFlag::DoublePinyinZrm) {
+                if (size = starts_with(string, pinyin.double_pinyin_xiaohe))
+                    return size;
+            }
+
             if (flags & PinyinFlag::InitialLetter) {
                 if (string.size() && string[0] == pinyin.initial_letter)
                     return 1;
