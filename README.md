@@ -15,4 +15,4 @@
 
 ## 相关项目
 * [Chaoses-Ib/IbEverythingExt](https://github.com/Chaoses-Ib/IbEverythingExt)
-* [Chaoses-Ib/pinyin-data](https://github.com/Chaoses-Ib/pinyin-data
+* [Chaoses-Ib/pinyin-data](https://github.com/Chaoses-Ib/pinyin-data)
