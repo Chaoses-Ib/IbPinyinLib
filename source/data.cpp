@@ -1,5 +1,4 @@
-﻿#include "pch.h"
-#include "Pinyin.hpp"
+﻿#include <IbPinyin/pinyin.hpp>
 
 #define P(s) {IB_PINYIN_LITERAL(#s)},
 #define F 65535

@@ -43,8 +43,7 @@ def output():
         range_code += f'{{0x{ table[0].start :X}, 0x{ table[0].stop - 1 :X}, { table_name }}},\n'
     range_code += '};'
 
-    return f'''#include "pch.h"
-#include "Pinyin.hpp"
+    return f'''#include <IbPinyin/pinyin.hpp>
 
 #define P(s) {{IB_PINYIN_LITERAL(#s)}},
 #define F 65535

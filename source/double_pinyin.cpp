@@ -1,5 +1,4 @@
-﻿#include "pch.h"
-#include "Pinyin.hpp"
+﻿#include <IbPinyin/pinyin.hpp>
 
 #define LITERAL(s) IB_PINYIN_LITERAL(s)
 

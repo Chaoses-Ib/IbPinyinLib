@@ -55,7 +55,7 @@ namespace pinyin
     
         Pinyin(StringView pinyin);
 
-        // only Pinyin is initialized at startup, other PinyinFlag need to be initialized by calling init (and be detroyed by calling destroy)
+        // only PinyinFlag::Pinyin is initialized at startup, other PinyinFlag need to be initialized by calling init() (and be detroyed by calling destroy())
         void init(PinyinFlagValue flags);
         // will not clear initial_letter
         void destroy();
@@ -123,7 +123,7 @@ namespace pinyin
     extern PinyinCombination<10> pinyin_combinations[1104];
     extern PinyinRange pinyin_ranges[7];
 
-    // only Pinyin is initialized at startup, other PinyinFlag need to be initialized by calling init (and be detroyed by calling destroy)
+    // only PinyinFlag::Pinyin is initialized at startup, other PinyinFlag need to be initialized by calling init() (and be detroyed by calling destroy())
     void init(PinyinFlagValue flags);
     // will not clear initial_letter
     void destroy();

@@ -1,7 +1,6 @@
-﻿#include "pch.h"
+﻿#include <IbPinyin/pinyin.hpp>
 #include <algorithm>
 #include <cassert>
-#include "Pinyin.hpp"
 
 #define LITERAL(s) IB_PINYIN_LITERAL(s)
 
