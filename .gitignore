@@ -1,5 +1,1 @@
-Data/*.txt
-build/
-
-.vs/
-out/
+data/*.txt

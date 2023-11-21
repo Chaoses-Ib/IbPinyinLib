@@ -1,0 +1,5 @@
+Data/*.txt
+build/
+
+.vs/
+out/
