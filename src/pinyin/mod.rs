@@ -33,6 +33,8 @@ type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
 /// ## Others
 /// TODO: Optionally generate pinyin notation data at build time.
 ///
+/// Less flexible at runtime.
+///
 /// TODO: Is row-major order more cache friendly?
 ///
 /// Row-major order requires 7 * 8 * 1514 ≈ 83 KiB, dynamic columns are needed to reduce memory usage. And dynamic columns can also offer better cache locality.

@@ -52,6 +52,10 @@ impl<'a> PinyinMatcherBuilder<'a> {
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
         PinyinMatcher {
             pattern,
+            regex: regex::RegexBuilder::new(&regex::escape(&self.pattern))
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
             is_pattern_partial: self.is_pattern_partial,
             pinyin_data: match self.pinyin_data {
                 Some(pinyin_data) => {
@@ -75,12 +79,16 @@ impl<'a> PinyinMatcherBuilder<'a> {
     }
 }
 
-/// TODO: ASCII-only or no-hanzi haystack optimization
 /// TODO: No-pinyin pattern optimization
+/// TODO: Match PinyinAscii only after PinyinAsciiInitial
+/// TODO: allow_uppercase_pinyin
 /// TODO: Case-sensitivity
 /// TODO: Anchors, `*_at`
 /// TODO: Unicode normalization
+/// TODO: No-hanzi haystack optimization (0.2/0.9%)
 pub struct PinyinMatcher<'a> {
+    regex: regex::Regex,
+
     pattern: String,
     is_pattern_partial: bool,
     pinyin_data: Cow<'a, PinyinData>,
@@ -140,10 +148,22 @@ impl<'a> PinyinMatcher<'a> {
     }
 
     pub fn find(&self, haystack: &str) -> Option<Match> {
+        self.find_with_is_ascii(haystack, haystack.is_ascii())
+    }
+
+    fn find_with_is_ascii(&self, haystack: &str, is_ascii: bool) -> Option<Match> {
         if self.pattern.is_empty() {
             return Some(Match {
                 start: 0,
                 end: 0,
+                is_pattern_partial: false,
+            });
+        }
+
+        if is_ascii {
+            return self.regex.find(haystack).map(|m| Match {
+                start: m.start(),
+                end: m.end(),
                 is_pattern_partial: false,
             });
         }
@@ -162,7 +182,11 @@ impl<'a> PinyinMatcher<'a> {
     }
 
     pub fn is_match(&self, haystack: &str) -> bool {
-        self.find(haystack).is_some()
+        if haystack.is_ascii() {
+            return self.regex.is_match(haystack);
+        }
+
+        self.find_with_is_ascii(haystack, false).is_some()
     }
 
     /// ## Returns
@@ -175,6 +199,21 @@ impl<'a> PinyinMatcher<'a> {
                 end: 0,
                 is_pattern_partial: false,
             });
+        }
+
+        if haystack.is_ascii() {
+            // TODO: Use regex-automata's anchored searches?
+            return match self.regex.find(haystack) {
+                Some(m) => match m.start() {
+                    0 => Some(Match {
+                        start: 0,
+                        end: m.end(),
+                        is_pattern_partial: false,
+                    }),
+                    _ => None,
+                },
+                None => None,
+            };
         }
 
         self.sub_test(&self.pattern, haystack)
