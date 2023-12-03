@@ -47,13 +47,12 @@ pub struct PinyinData {
     // TODO
     // ascii_tone: Option<Box<[PinyinString]>>,
     // ascii_first_letter: Option<Box<[u8]>>,
-    // TODO
-    // diletter_abc: Option<Box<[PinyinString]>>,
-    // diletter_jiajia: Option<Box<[PinyinString]>>,
-    // diletter_microsoft: Option<Box<[PinyinString]>>,
-    // diletter_thunisoft: Option<Box<[PinyinString]>>,
-    // diletter_xiaohe: Option<Box<[PinyinString]>>,
-    // diletter_zrm: Option<Box<[PinyinString]>>,
+    diletter_abc: Option<Box<[PinyinString]>>,
+    diletter_jiajia: Option<Box<[PinyinString]>>,
+    diletter_microsoft: Option<Box<[PinyinString]>>,
+    diletter_thunisoft: Option<Box<[PinyinString]>>,
+    diletter_xiaohe: Option<Box<[PinyinString]>>,
+    diletter_zrm: Option<Box<[PinyinString]>>,
 }
 
 impl PinyinData {
@@ -63,10 +62,30 @@ impl PinyinData {
             ascii: None,
             // ascii_tone: None,
             // ascii_first_letter: None,
+            diletter_abc: None,
+            diletter_jiajia: None,
+            diletter_microsoft: None,
+            diletter_thunisoft: None,
+            diletter_xiaohe: None,
+            diletter_zrm: None,
         };
 
         pinyin_data.init_notations(notations);
         pinyin_data
+    }
+
+    fn init_notation_with_ascii(
+        ascii: &[PinyinString],
+        map: impl Fn(&str) -> PinyinString,
+        notation: &mut Option<Box<[PinyinString]>>,
+    ) {
+        notation.get_or_insert_with(|| {
+            ascii
+                .iter()
+                .map(|py| map(py))
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        });
     }
 
     pub fn init_notations(&mut self, notations: PinyinNotation) {
@@ -84,7 +103,38 @@ impl PinyinData {
                 }
                 PinyinNotation::AsciiTone => todo!(),
                 PinyinNotation::AsciiFirstLetter => self.init_notations(PinyinNotation::Ascii),
-                _ => todo!(),
+
+                PinyinNotation::DiletterAbc => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_abc,
+                    &mut self.diletter_abc,
+                ),
+                PinyinNotation::DiletterJiajia => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_jiajia,
+                    &mut self.diletter_jiajia,
+                ),
+                PinyinNotation::DiletterMicrosoft => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_microsoft,
+                    &mut self.diletter_microsoft,
+                ),
+                PinyinNotation::DiletterThunisoft => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_thunisoft,
+                    &mut self.diletter_thunisoft,
+                ),
+                PinyinNotation::DiletterXiaohe => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_xiaohe,
+                    &mut self.diletter_xiaohe,
+                ),
+                PinyinNotation::DiletterZrm => Self::init_notation_with_ascii(
+                    self.ascii.as_ref().unwrap(),
+                    notation::ascii_to_diletter_zrm,
+                    &mut self.diletter_zrm,
+                ),
+                _ => unreachable!(),
             }
         }
         self.inited_notations |= notations;
@@ -163,14 +213,51 @@ impl<'a> Pinyin<'a> {
                 .ascii
                 .as_ref()
                 .map(|py| unsafe { py[i].as_str().get_unchecked(..1) }),
-            // PinyinNotation::DiletterAbc => {}
-            // PinyinNotation::DiletterJiajia => {}
-            // PinyinNotation::DiletterMicrosoft => {}
-            // PinyinNotation::DiletterThunisoft => {}
-            // PinyinNotation::DiletterXiaohe => {}
-            // PinyinNotation::DiletterZrm => {}
+
+            PinyinNotation::DiletterAbc => self.data.diletter_abc.as_ref().map(|py| py[i].as_str()),
+            PinyinNotation::DiletterJiajia => {
+                self.data.diletter_jiajia.as_ref().map(|py| py[i].as_str())
+            }
+            PinyinNotation::DiletterMicrosoft => self
+                .data
+                .diletter_microsoft
+                .as_ref()
+                .map(|py| py[i].as_str()),
+            PinyinNotation::DiletterThunisoft => self
+                .data
+                .diletter_thunisoft
+                .as_ref()
+                .map(|py| py[i].as_str()),
+            PinyinNotation::DiletterXiaohe => {
+                self.data.diletter_xiaohe.as_ref().map(|py| py[i].as_str())
+            }
+            PinyinNotation::DiletterZrm => self.data.diletter_zrm.as_ref().map(|py| py[i].as_str()),
             _ => None,
         }
+    }
+
+    /// Require `PinyinNotation::Ascii`.
+    pub fn initial_final(&self) -> Option<(&str, &str)> {
+        self.notation(PinyinNotation::Ascii)
+            .map(Self::split_initial_final)
+    }
+
+    fn split_initial_final(ascii: &str) -> (&str, &str) {
+        debug_assert!(ascii.is_ascii());
+
+        // TODO: as_ascii_unchecked
+        let mut chars = ascii.chars();
+        ascii.split_at(match chars.next().unwrap() {
+            'a' | 'e' | 'i' | 'o' | 'u' | 'v' => 0,
+            'z' | 'c' | 's' => {
+                if chars.next().unwrap() == 'h' {
+                    2
+                } else {
+                    1
+                }
+            }
+            _ => 1,
+        })
     }
 }
 
@@ -225,18 +312,14 @@ mod tests {
 
     #[test]
     fn get_pinyins() {
-        let data = PinyinData::new(PinyinNotation::Ascii);
+        let data = PinyinData::new(PinyinNotation::all() - PinyinNotation::AsciiTone);
 
         assert_eq!(data.get_pinyins('中').count(), 2);
 
         for pinyin in data.get_pinyins('中') {
             println!("{:?}", pinyin);
 
-            for notation in [
-                PinyinNotation::Unicode,
-                PinyinNotation::Ascii,
-                PinyinNotation::AsciiFirstLetter,
-            ] {
+            for notation in (PinyinNotation::all() - PinyinNotation::AsciiTone).iter() {
                 assert!(pinyin.notation(notation).is_some_and(|py| !py.is_empty()));
             }
         }
