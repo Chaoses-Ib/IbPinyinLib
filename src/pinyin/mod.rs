@@ -27,8 +27,8 @@ type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
 
 /// ## Memory usage
 /// Per pinyin notation: 8 * 1514 ≈ 11.8 KiB.
-/// - `Pinyin` does not require extra memory.
-/// - `PinyinAsciiInitial` uses the same storage as `PinyinAscii`.
+/// - `Unicode` does not require extra memory.
+/// - `AsciiFirstLetter` uses the same storage as `Ascii`.
 ///
 /// ## Others
 /// TODO: Optionally generate pinyin notation data at build time.
@@ -43,10 +43,10 @@ type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
 #[derive(Clone)]
 pub struct PinyinData {
     inited_notations: PinyinNotation,
-    pinyin_ascii: Option<Box<[PinyinString]>>,
+    ascii: Option<Box<[PinyinString]>>,
     // TODO
-    // pinyin_ascii_tone: Option<Box<[PinyinString]>>,
-    // pinyin_ascii_initial: Option<Box<[u8]>>,
+    // ascii_tone: Option<Box<[PinyinString]>>,
+    // ascii_first_letter: Option<Box<[u8]>>,
     // TODO
     // diletter_abc: Option<Box<[PinyinString]>>,
     // diletter_jiajia: Option<Box<[PinyinString]>>,
@@ -59,10 +59,10 @@ pub struct PinyinData {
 impl PinyinData {
     pub fn new(notations: PinyinNotation) -> Self {
         let mut pinyin_data = Self {
-            inited_notations: PinyinNotation::Pinyin,
-            pinyin_ascii: None,
-            // pinyin_ascii_tone: None,
-            // pinyin_ascii_initial: None,
+            inited_notations: PinyinNotation::Unicode,
+            ascii: None,
+            // ascii_tone: None,
+            // ascii_first_letter: None,
         };
 
         pinyin_data.init_notations(notations);
@@ -72,20 +72,18 @@ impl PinyinData {
     pub fn init_notations(&mut self, notations: PinyinNotation) {
         for notation in notations.iter() {
             match notation {
-                PinyinNotation::Pinyin => (),
-                PinyinNotation::PinyinAscii => {
-                    self.pinyin_ascii.get_or_insert_with(|| {
+                PinyinNotation::Unicode => (),
+                PinyinNotation::Ascii => {
+                    self.ascii.get_or_insert_with(|| {
                         data::PINYINS
                             .iter()
-                            .map(|py| notation::pinyin_to_pinyin_ascii(py))
+                            .map(|py| notation::unicode_to_ascii(py))
                             .collect::<Vec<_>>()
                             .into_boxed_slice()
                     });
                 }
-                PinyinNotation::PinyinAsciiTone => todo!(),
-                PinyinNotation::PinyinAsciiInitial => {
-                    self.init_notations(PinyinNotation::PinyinAscii)
-                }
+                PinyinNotation::AsciiTone => todo!(),
+                PinyinNotation::AsciiFirstLetter => self.init_notations(PinyinNotation::Ascii),
                 _ => todo!(),
             }
         }
@@ -157,12 +155,12 @@ impl<'a> Pinyin<'a> {
 
         let i = self.index as usize;
         match notation {
-            PinyinNotation::Pinyin => Some(data::PINYINS[i]),
-            PinyinNotation::PinyinAscii => self.data.pinyin_ascii.as_ref().map(|py| py[i].as_str()),
-            // PinyinNotation::PinyinAsciiTone => {}
-            PinyinNotation::PinyinAsciiInitial => self
+            PinyinNotation::Unicode => Some(data::PINYINS[i]),
+            PinyinNotation::Ascii => self.data.ascii.as_ref().map(|py| py[i].as_str()),
+            // PinyinNotation::AsciiTone => {}
+            PinyinNotation::AsciiFirstLetter => self
                 .data
-                .pinyin_ascii
+                .ascii
                 .as_ref()
                 .map(|py| unsafe { py[i].as_str().get_unchecked(..1) }),
             // PinyinNotation::DiletterAbc => {}
@@ -227,7 +225,7 @@ mod tests {
 
     #[test]
     fn get_pinyins() {
-        let data = PinyinData::new(PinyinNotation::PinyinAscii);
+        let data = PinyinData::new(PinyinNotation::Ascii);
 
         assert_eq!(data.get_pinyins('中').count(), 2);
 
@@ -235,9 +233,9 @@ mod tests {
             println!("{:?}", pinyin);
 
             for notation in [
-                PinyinNotation::Pinyin,
-                PinyinNotation::PinyinAscii,
-                PinyinNotation::PinyinAsciiInitial,
+                PinyinNotation::Unicode,
+                PinyinNotation::Ascii,
+                PinyinNotation::AsciiFirstLetter,
             ] {
                 assert!(pinyin.notation(notation).is_some_and(|py| !py.is_empty()));
             }

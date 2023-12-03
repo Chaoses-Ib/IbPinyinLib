@@ -35,10 +35,10 @@ impl<'a> PinyinMatcherBuilder<'a> {
     }
 
     const ORDERED_PINYIN_NOTATIONS: [PinyinNotation; 10] = [
-        PinyinNotation::PinyinAsciiInitial,
-        PinyinNotation::PinyinAscii,
-        PinyinNotation::PinyinAsciiTone,
-        PinyinNotation::Pinyin,
+        PinyinNotation::AsciiFirstLetter,
+        PinyinNotation::Ascii,
+        PinyinNotation::AsciiTone,
+        PinyinNotation::Unicode,
         PinyinNotation::DiletterAbc,
         PinyinNotation::DiletterJiajia,
         PinyinNotation::DiletterMicrosoft,
@@ -80,7 +80,7 @@ impl<'a> PinyinMatcherBuilder<'a> {
 }
 
 /// TODO: No-pinyin pattern optimization
-/// TODO: Match PinyinAscii only after PinyinAsciiInitial
+/// TODO: Match Ascii only after AsciiFirstLetter; get_pinyins_and_for_each
 /// TODO: allow_uppercase_pinyin
 /// TODO: Case-sensitivity
 /// TODO: Anchors, `*_at`
@@ -320,7 +320,7 @@ mod test {
     #[test]
     fn test() {
         let matcher = PinyinMatcher::builder("xing")
-            .pinyin_notations(PinyinNotation::PinyinAscii)
+            .pinyin_notations(PinyinNotation::Ascii)
             .build();
         assert_match(matcher.test(""), None);
         assert_match(matcher.test("xing"), Some((0, 4)));
@@ -328,7 +328,7 @@ mod test {
         assert_match(matcher.test("行"), Some((0, 3)));
 
         let matcher = PinyinMatcher::builder("ke")
-            .pinyin_notations(PinyinNotation::PinyinAscii)
+            .pinyin_notations(PinyinNotation::Ascii)
             .build();
         assert_match(matcher.test("ke"), Some((0, 2)));
         assert_match(matcher.test("科"), Some((0, 3)));
@@ -336,26 +336,26 @@ mod test {
         assert_match(matcher.test("凯尔"), None);
 
         let matcher = PinyinMatcher::builder("")
-            .pinyin_notations(PinyinNotation::PinyinAscii)
+            .pinyin_notations(PinyinNotation::Ascii)
             .build();
         assert_match(matcher.test(""), Some((0, 0)));
         assert_match(matcher.test("abc"), Some((0, 0)));
 
         let matcher = PinyinMatcher::builder("ke")
-            .pinyin_notations(PinyinNotation::PinyinAscii | PinyinNotation::PinyinAsciiInitial)
+            .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
             .build();
         assert_match(matcher.test("ke"), Some((0, 2)));
         assert_match(matcher.test("科"), Some((0, 3)));
         assert_match(matcher.test("k鹅"), Some((0, 4)));
         assert_match(matcher.test("凯尔"), Some((0, 6)));
-        // PinyinAsciiInitial is preferred
+        // AsciiFirstLetter is preferred
         assert_match(matcher.test("柯尔"), Some((0, 6)));
     }
 
     #[test]
     fn find() {
         let matcher = PinyinMatcher::builder("xing")
-            .pinyin_notations(PinyinNotation::PinyinAscii)
+            .pinyin_notations(PinyinNotation::Ascii)
             .build();
         assert_match(matcher.find(""), None);
         assert_match(matcher.find("buxing"), Some((2, 4)));
@@ -363,7 +363,7 @@ mod test {
         assert_match(matcher.find("不行"), Some((3, 3)));
 
         let matcher = PinyinMatcher::builder("")
-            .pinyin_notations(PinyinNotation::PinyinAscii)
+            .pinyin_notations(PinyinNotation::Ascii)
             .build();
         assert_match(matcher.find(""), Some((0, 0)));
         assert_match(matcher.find("abc"), Some((0, 0)));
