@@ -1,6 +1,8 @@
 use super::{Pinyin, PinyinString};
 
 bitflags::bitflags! {
+    /// All pinyin notations are in lower case (`py.to_lowercase() == py`).
+    ///
     /// ## Others
     /// TODO: doc alias does not work
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -408,6 +410,13 @@ pub(super) fn ascii_to_diletter_zrm(ascii: &str) -> PinyinString {
 #[cfg(test)]
 mod tests {
     use super::{super::data, *};
+
+    #[test]
+    fn lowercase() {
+        for unicode in data::PINYINS {
+            assert_eq!(unicode, unicode.to_lowercase());
+        }
+    }
 
     #[test]
     fn unicode_to_ascii_() {
