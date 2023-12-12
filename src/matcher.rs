@@ -41,6 +41,9 @@ impl<'a> PinyinMatcherBuilder<'a> {
     }
 
     /// Default: `new()` on `build()`
+    ///
+    /// ## Arguments
+    /// - `pinyin_data`: Must be inited with required notations if `inmut-data` feature is not enabled.
     pub fn pinyin_data(mut self, pinyin_data: &'a PinyinData) -> Self {
         self.pinyin_data = Some(pinyin_data);
         self
@@ -109,9 +112,13 @@ impl<'a> PinyinMatcherBuilder<'a> {
 
             pinyin_data: match self.pinyin_data {
                 Some(pinyin_data) => {
+                    #[cfg(not(feature = "inmut-data"))]
                     assert!(pinyin_data
                         .inited_notations()
                         .contains(self.pinyin_notations));
+                    #[cfg(feature = "inmut-data")]
+                    pinyin_data.init_notations(self.pinyin_notations);
+
                     Cow::Borrowed(pinyin_data)
                 }
                 None => Cow::Owned(PinyinData::new(self.pinyin_notations)),

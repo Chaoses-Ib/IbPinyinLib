@@ -9,3 +9,6 @@ edition = "2021"
 arraystring = "0.3.0"
 bitflags = "2.4.1"
 regex = "1.10.2"
+
+[features]
+inmut-data = []

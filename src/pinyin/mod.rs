@@ -25,6 +25,11 @@ pub use notation::PinyinNotation;
 
 type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
 
+#[cfg(not(feature = "inmut-data"))]
+type OptionalPinyinStringArray = Option<Box<[PinyinString]>>;
+#[cfg(feature = "inmut-data")]
+type OptionalPinyinStringArray = std::sync::OnceLock<Box<[PinyinString]>>;
+
 /// ## Memory usage
 /// Per pinyin notation: 8 * 1514 ≈ 11.8 KiB.
 /// - `Unicode` does not require extra memory.
@@ -42,106 +47,133 @@ type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
 /// TODO: Order pinyin by frequency to improve cache locality?
 #[derive(Clone)]
 pub struct PinyinData {
+    #[cfg(not(feature = "inmut-data"))]
     inited_notations: PinyinNotation,
-    ascii: Option<Box<[PinyinString]>>,
+    #[cfg(feature = "inmut-data")]
+    inited_notations: notation::AtomicPinyinNotation,
+
+    ascii: OptionalPinyinStringArray,
     // TODO
-    // ascii_tone: Option<Box<[PinyinString]>>,
+    // ascii_tone: OptionalPinyinStringArray,
     // ascii_first_letter: Option<Box<[u8]>>,
-    diletter_abc: Option<Box<[PinyinString]>>,
-    diletter_jiajia: Option<Box<[PinyinString]>>,
-    diletter_microsoft: Option<Box<[PinyinString]>>,
-    diletter_thunisoft: Option<Box<[PinyinString]>>,
-    diletter_xiaohe: Option<Box<[PinyinString]>>,
-    diletter_zrm: Option<Box<[PinyinString]>>,
+    diletter_abc: OptionalPinyinStringArray,
+    diletter_jiajia: OptionalPinyinStringArray,
+    diletter_microsoft: OptionalPinyinStringArray,
+    diletter_thunisoft: OptionalPinyinStringArray,
+    diletter_xiaohe: OptionalPinyinStringArray,
+    diletter_zrm: OptionalPinyinStringArray,
 }
 
 impl PinyinData {
     pub fn new(notations: PinyinNotation) -> Self {
+        #[cfg_attr(feature = "inmut-data", allow(unused_mut))]
         let mut pinyin_data = Self {
-            inited_notations: PinyinNotation::Unicode,
-            ascii: None,
-            // ascii_tone: None,
-            // ascii_first_letter: None,
-            diletter_abc: None,
-            diletter_jiajia: None,
-            diletter_microsoft: None,
-            diletter_thunisoft: None,
-            diletter_xiaohe: None,
-            diletter_zrm: None,
+            inited_notations: PinyinNotation::Unicode.into(),
+            ascii: Default::default(),
+            // ascii_tone: Default::default(),
+            // ascii_first_letter: Default::default(),
+            diletter_abc: Default::default(),
+            diletter_jiajia: Default::default(),
+            diletter_microsoft: Default::default(),
+            diletter_thunisoft: Default::default(),
+            diletter_xiaohe: Default::default(),
+            diletter_zrm: Default::default(),
         };
 
         pinyin_data.init_notations(notations);
         pinyin_data
     }
 
-    fn init_notation_with_ascii(
-        ascii: &[PinyinString],
-        map: impl Fn(&str) -> PinyinString,
-        notation: &mut Option<Box<[PinyinString]>>,
-    ) {
-        notation.get_or_insert_with(|| {
-            ascii
-                .iter()
-                .map(|py| map(py))
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-        });
+    const fn notation(&self, notation: PinyinNotation) -> &OptionalPinyinStringArray {
+        match notation {
+            PinyinNotation::Unicode => unreachable!(),
+            PinyinNotation::Ascii => &self.ascii,
+            // TODO
+            PinyinNotation::AsciiTone => &self.ascii,
+            PinyinNotation::AsciiFirstLetter => unreachable!(),
+            PinyinNotation::DiletterAbc => &self.diletter_abc,
+            PinyinNotation::DiletterJiajia => &self.diletter_jiajia,
+            PinyinNotation::DiletterMicrosoft => &self.diletter_microsoft,
+            PinyinNotation::DiletterThunisoft => &self.diletter_thunisoft,
+            PinyinNotation::DiletterXiaohe => &self.diletter_xiaohe,
+            PinyinNotation::DiletterZrm => &self.diletter_zrm,
+            _ => unreachable!(),
+        }
     }
 
+    #[cfg(not(feature = "inmut-data"))]
     pub fn init_notations(&mut self, notations: PinyinNotation) {
+        Self::init_notations_inner(self, notations)
+    }
+
+    #[cfg(feature = "inmut-data")]
+    pub fn init_notations(&self, notations: PinyinNotation) {
+        Self::init_notations_inner(self, notations)
+    }
+
+    fn init_notations_inner(
+        // `self` must be the first parameter of an associated function
+        #[cfg(not(feature = "inmut-data"))] this: &mut Self,
+        #[cfg(feature = "inmut-data")] this: &Self,
+        notations: PinyinNotation,
+    ) {
         for notation in notations.iter() {
             match notation {
                 PinyinNotation::Unicode => (),
-                PinyinNotation::Ascii => {
-                    self.ascii.get_or_insert_with(|| {
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter => {
+                    let init = || {
                         data::PINYINS
                             .iter()
                             .map(|py| notation::unicode_to_ascii(py))
                             .collect::<Vec<_>>()
                             .into_boxed_slice()
-                    });
+                    };
+                    #[cfg(not(feature = "inmut-data"))]
+                    this.ascii.get_or_insert_with(init);
+                    #[cfg(feature = "inmut-data")]
+                    this.ascii.get_or_init(init);
                 }
                 PinyinNotation::AsciiTone => todo!(),
-                PinyinNotation::AsciiFirstLetter => self.init_notations(PinyinNotation::Ascii),
+                _ => {
+                    this.init_notations(PinyinNotation::Ascii);
 
-                PinyinNotation::DiletterAbc => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_abc,
-                    &mut self.diletter_abc,
-                ),
-                PinyinNotation::DiletterJiajia => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_jiajia,
-                    &mut self.diletter_jiajia,
-                ),
-                PinyinNotation::DiletterMicrosoft => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_microsoft,
-                    &mut self.diletter_microsoft,
-                ),
-                PinyinNotation::DiletterThunisoft => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_thunisoft,
-                    &mut self.diletter_thunisoft,
-                ),
-                PinyinNotation::DiletterXiaohe => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_xiaohe,
-                    &mut self.diletter_xiaohe,
-                ),
-                PinyinNotation::DiletterZrm => Self::init_notation_with_ascii(
-                    self.ascii.as_ref().unwrap(),
-                    notation::ascii_to_diletter_zrm,
-                    &mut self.diletter_zrm,
-                ),
-                _ => unreachable!(),
+                    let init = || {
+                        #[cfg(not(feature = "inmut-data"))]
+                        let ascii = this.ascii.as_ref().unwrap();
+                        #[cfg(feature = "inmut-data")]
+                        let ascii = this.ascii.get().unwrap();
+
+                        let map = notation::ascii_map_fn(notation);
+                        ascii
+                            .iter()
+                            .map(|py| map(py))
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice()
+                    };
+                    #[cfg(not(feature = "inmut-data"))]
+                    match notation {
+                        PinyinNotation::DiletterAbc => &mut this.diletter_abc,
+                        PinyinNotation::DiletterJiajia => &mut this.diletter_jiajia,
+                        PinyinNotation::DiletterMicrosoft => &mut this.diletter_microsoft,
+                        PinyinNotation::DiletterThunisoft => &mut this.diletter_thunisoft,
+                        PinyinNotation::DiletterXiaohe => &mut this.diletter_xiaohe,
+                        PinyinNotation::DiletterZrm => &mut this.diletter_zrm,
+                        _ => unreachable!(),
+                    }
+                    .get_or_insert_with(init);
+                    #[cfg(feature = "inmut-data")]
+                    this.notation(notation).get_or_init(init);
+                }
             }
         }
-        self.inited_notations |= notations;
+
+        #[cfg(not(feature = "inmut-data"))]
+        use core::ops::BitOrAssign;
+        this.inited_notations.bitor_assign(notations);
     }
 
     pub fn inited_notations(&self) -> PinyinNotation {
-        self.inited_notations
+        self.inited_notations.clone().into()
     }
 
     fn get_pinyin_index(c: char) -> Option<u16> {
@@ -204,35 +236,21 @@ impl<'a> Pinyin<'a> {
         debug_assert_eq!(notation.bits().count_ones(), 1);
 
         let i = self.index as usize;
+
+        let get = |pinyins: &'a OptionalPinyinStringArray| {
+            #[cfg(not(feature = "inmut-data"))]
+            let notation = pinyins.as_ref().map(|pinyins| pinyins[i].as_str());
+            #[cfg(feature = "inmut-data")]
+            let notation = pinyins.get().map(|pinyins| pinyins[i].as_str());
+            notation
+        };
+
         match notation {
             PinyinNotation::Unicode => Some(data::PINYINS[i]),
-            PinyinNotation::Ascii => self.data.ascii.as_ref().map(|py| py[i].as_str()),
-            // PinyinNotation::AsciiTone => {}
-            PinyinNotation::AsciiFirstLetter => self
-                .data
-                .ascii
-                .as_ref()
-                .map(|py| unsafe { py[i].as_str().get_unchecked(..1) }),
-
-            PinyinNotation::DiletterAbc => self.data.diletter_abc.as_ref().map(|py| py[i].as_str()),
-            PinyinNotation::DiletterJiajia => {
-                self.data.diletter_jiajia.as_ref().map(|py| py[i].as_str())
+            PinyinNotation::AsciiFirstLetter => {
+                get(&self.data.ascii).map(|ascii| unsafe { ascii.get_unchecked(..1) })
             }
-            PinyinNotation::DiletterMicrosoft => self
-                .data
-                .diletter_microsoft
-                .as_ref()
-                .map(|py| py[i].as_str()),
-            PinyinNotation::DiletterThunisoft => self
-                .data
-                .diletter_thunisoft
-                .as_ref()
-                .map(|py| py[i].as_str()),
-            PinyinNotation::DiletterXiaohe => {
-                self.data.diletter_xiaohe.as_ref().map(|py| py[i].as_str())
-            }
-            PinyinNotation::DiletterZrm => self.data.diletter_zrm.as_ref().map(|py| py[i].as_str()),
-            _ => None,
+            _ => get(self.data.notation(notation)),
         }
     }
 

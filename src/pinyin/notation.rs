@@ -72,6 +72,41 @@ bitflags::bitflags! {
     }
 }
 
+#[cfg(feature = "inmut-data")]
+pub(super) use atomic::*;
+#[cfg(feature = "inmut-data")]
+mod atomic {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use super::*;
+
+    pub struct AtomicPinyinNotation(AtomicU32);
+
+    impl Clone for AtomicPinyinNotation {
+        fn clone(&self) -> Self {
+            Self(self.0.load(Ordering::Relaxed).into())
+        }
+    }
+
+    impl From<PinyinNotation> for AtomicPinyinNotation {
+        fn from(notation: PinyinNotation) -> Self {
+            Self(notation.bits().into())
+        }
+    }
+
+    impl Into<PinyinNotation> for AtomicPinyinNotation {
+        fn into(self) -> PinyinNotation {
+            PinyinNotation::from_bits_retain(self.0.load(Ordering::Relaxed))
+        }
+    }
+
+    impl AtomicPinyinNotation {
+        pub fn bitor_assign(&self, rhs: PinyinNotation) {
+            self.0.fetch_or(rhs.bits(), Ordering::Relaxed);
+        }
+    }
+}
+
 pub(super) fn unicode_to_ascii(unicode: &str) -> PinyinString {
     let mut ascii = PinyinString::new();
     let mut chars = unicode.chars();
@@ -110,6 +145,18 @@ pub(super) fn unicode_to_ascii(unicode: &str) -> PinyinString {
     ascii
 }
 
+pub(super) fn ascii_map_fn(notation: PinyinNotation) -> fn(&str) -> PinyinString {
+    match notation {
+        PinyinNotation::DiletterAbc => ascii_to_diletter_abc,
+        PinyinNotation::DiletterJiajia => ascii_to_diletter_jiajia,
+        PinyinNotation::DiletterMicrosoft => ascii_to_diletter_microsoft,
+        PinyinNotation::DiletterThunisoft => ascii_to_diletter_thunisoft,
+        PinyinNotation::DiletterXiaohe => ascii_to_diletter_xiaohe,
+        PinyinNotation::DiletterZrm => ascii_to_diletter_zrm,
+        _ => unreachable!(),
+    }
+}
+
 /// ## Arguments
 /// - `map_initial`
 ///
@@ -118,7 +165,7 @@ pub(super) fn unicode_to_ascii(unicode: &str) -> PinyinString {
 ///   See [initials](https://en.wikipedia.org/wiki/Pinyin#Initials) for details.
 ///
 /// - `final_map`: See [finals](https://en.wikipedia.org/wiki/Pinyin#Finals) for details.
-pub(super) fn ascii_to_diletter<'a>(
+fn ascii_to_diletter<'a>(
     ascii: &str,
     map_pinyin: impl Fn(&str) -> Option<&str>,
     map_initial: impl Fn(&str) -> Option<&str>,
@@ -156,7 +203,7 @@ pub(super) fn ascii_to_diletter<'a>(
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_abc(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_abc(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
@@ -198,7 +245,7 @@ pub(super) fn ascii_to_diletter_abc(ascii: &str) -> PinyinString {
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_jiajia(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_jiajia(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
@@ -240,7 +287,7 @@ pub(super) fn ascii_to_diletter_jiajia(ascii: &str) -> PinyinString {
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_microsoft(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_microsoft(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
@@ -282,7 +329,7 @@ pub(super) fn ascii_to_diletter_microsoft(ascii: &str) -> PinyinString {
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_thunisoft(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_thunisoft(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
@@ -324,7 +371,7 @@ pub(super) fn ascii_to_diletter_thunisoft(ascii: &str) -> PinyinString {
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_xiaohe(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_xiaohe(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
@@ -366,7 +413,7 @@ pub(super) fn ascii_to_diletter_xiaohe(ascii: &str) -> PinyinString {
 }
 
 #[rustfmt::skip]
-pub(super) fn ascii_to_diletter_zrm(ascii: &str) -> PinyinString {
+fn ascii_to_diletter_zrm(ascii: &str) -> PinyinString {
     ascii_to_diletter(
         ascii,
         |pinyin| Some(match pinyin {
