@@ -12,3 +12,4 @@ regex = "1.10.2"
 
 [features]
 inmut-data = []
+minimal = ["inmut-data"]

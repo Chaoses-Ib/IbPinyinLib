@@ -8,7 +8,7 @@ bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub struct PinyinNotation: u32 {
         /// e.g. "pīn", "yīn"
-        const Unicode = 0x1;
+        const Unicode = 0x8;
 
         /// 全拼
         ///
@@ -32,7 +32,7 @@ bitflags::bitflags! {
         ///
         /// See [简拼](https://zh.wikipedia.org/wiki/简拼) for details.
         #[doc(alias = "简拼")]
-        const AsciiFirstLetter = 0x8;
+        const AsciiFirstLetter = 0x1;
 
         /// 智能 ABC 双拼
         ///
