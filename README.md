@@ -1,6 +1,25 @@
 # IbPinyinLib
 ## 语言
-- [C++ 实现](C++/README.md)（停止维护）
+### Rust
+```rust
+use ib_pinyin::{matcher::PinyinMatcher, pinyin::PinyinNotation};
+
+let matcher = PinyinMatcher::builder("pysousuoeve")
+    .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+    .build();
+assert!(matcher.is_match("拼音搜索Everything"));
+```
+
+### C
+```c
+#include <ib_pinyin/ib_pinyin.h>
+#include <ib_pinyin/notation.h>
+
+bool is_match = ib_pinyin_is_match_u8c(u8"pysousuoeve", u8"拼音搜索Everything", PINYIN_NOTATION_ASCII_FIRST_LETTER | PINYIN_NOTATION_ASCII);
+```
+
+### C++
+[原实现](C++/README.md)（停止维护）
 
 ## 相关项目
 - [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)

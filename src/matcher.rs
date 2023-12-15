@@ -141,6 +141,7 @@ impl<'a> PinyinMatcherBuilder<'a> {
 /// TODO: No-pinyin pattern optimization
 /// TODO: Match Ascii only after AsciiFirstLetter; get_pinyins_and_for_each
 /// TODO: Anchors, `*_at`
+/// TODO: UTF-16 and UCS-4
 /// TODO: Unicode normalization
 /// TODO: Tail-call optimization
 /// TODO: No-hanzi haystack optimization (0.2/0.9%)

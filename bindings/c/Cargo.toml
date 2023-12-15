@@ -1,0 +1,19 @@
+[package]
+name = "ib-pinyin-c"
+edition = "2021"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+diplomat = "0.7.0"
+diplomat-runtime = "0.7.0"
+ib-pinyin = { path = "../..", features = ["minimal"] }

@@ -7,7 +7,7 @@ use crate::{
     pinyin::{PinyinData, PinyinNotation},
 };
 
-fn pinyin_data() -> &'static PinyinData {
+pub fn pinyin_data() -> &'static PinyinData {
     static PINYIN_DATA: OnceLock<PinyinData> = OnceLock::new();
     PINYIN_DATA.get_or_init(|| PinyinData::new(PinyinNotation::empty()))
 }

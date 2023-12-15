@@ -1,7 +1,23 @@
+[workspace]
+members = ["bindings/c"]
+
+[workspace.package]
+version = "0.2.0"
+authors = ["Chaoses-Ib"]
+homepage = "https://github.com/Chaoses-Ib/IbPinyinLib"
+repository = "https://github.com/Chaoses-Ib/IbPinyinLib"
+license = "MIT"
+keywords = ["pinyin", "cjk"]
+
 [package]
 name = "ib-pinyin"
-version = "0.1.0"
 edition = "2021"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
