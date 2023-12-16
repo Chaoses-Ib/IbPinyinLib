@@ -18,3 +18,9 @@ diplomat = "0.7.0"
 diplomat-runtime = "0.7.0"
 ib-pinyin = { path = "../..", features = ["minimal", "encoding"] }
 widestring = "1.0.2"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
+
+[package.metadata.winres]
+LegalCopyright = "https://github.com/Chaoses-Ib/IbPinyinLib"

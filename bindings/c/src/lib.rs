@@ -1,5 +1,3 @@
-//! TODO: winres
-
 #[diplomat::bridge]
 mod ffi {
     use std::ffi::CStr;
