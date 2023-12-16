@@ -1,9 +1,9 @@
 use std::{borrow::Cow, ops::Range};
 
-use crate::{
-    pinyin::{PinyinData, PinyinNotation},
-    unicode::{CharToMonoLowercase, StrToMonoLowercase},
-};
+use crate::pinyin::{PinyinData, PinyinNotation};
+
+mod unicode;
+use unicode::{CharToMonoLowercase, StrToMonoLowercase};
 
 pub struct PinyinMatcherBuilder<'a> {
     pattern: String,
