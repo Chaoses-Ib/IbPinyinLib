@@ -16,4 +16,5 @@ crate-type = ["staticlib", "cdylib"]
 [dependencies]
 diplomat = "0.7.0"
 diplomat-runtime = "0.7.0"
-ib-pinyin = { path = "../..", features = ["minimal"] }
+ib-pinyin = { path = "../..", features = ["minimal", "encoding"] }
+widestring = "1.0.2"

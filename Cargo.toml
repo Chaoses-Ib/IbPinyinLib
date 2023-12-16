@@ -25,7 +25,9 @@ keywords.workspace = true
 arraystring = "0.3.0"
 bitflags = "2.4.1"
 regex = "1.10.2"
+widestring = { version = "1.0.2", optional = true }
 
 [features]
 inmut-data = []
 minimal = ["inmut-data"]
+encoding = ["dep:widestring"]

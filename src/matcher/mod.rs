@@ -1,28 +1,45 @@
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, marker::PhantomData, ops::Range};
 
 use crate::pinyin::{PinyinData, PinyinNotation};
 
 mod unicode;
 use unicode::{CharToMonoLowercase, StrToMonoLowercase};
 
-pub struct PinyinMatcherBuilder<'a> {
+pub mod encoding;
+use encoding::EncodedStr;
+
+mod regex_utils;
+
+pub struct PinyinMatcherBuilder<'a, HaystackStr = str>
+where
+    HaystackStr: EncodedStr + ?Sized,
+{
     pattern: String,
+    pattern_bytes: Vec<u8>,
     case_insensitive: bool,
     is_pattern_partial: bool,
     pinyin_data: Option<&'a PinyinData>,
     pinyin_notations: PinyinNotation,
     pinyin_case_insensitive: bool,
+
+    _haystack_str: PhantomData<HaystackStr>,
 }
 
-impl<'a> PinyinMatcherBuilder<'a> {
-    fn new(pattern: &str) -> Self {
+impl<'a, HaystackStr> PinyinMatcherBuilder<'a, HaystackStr>
+where
+    HaystackStr: EncodedStr + ?Sized,
+{
+    fn new(pattern: &HaystackStr) -> Self {
         Self {
-            pattern: pattern.to_owned(),
+            pattern: pattern.char_index_strs().map(|(_, c, _)| c).collect(),
+            pattern_bytes: pattern.as_bytes().to_owned(),
             case_insensitive: true,
             is_pattern_partial: false,
             pinyin_data: None,
             pinyin_notations: PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
             pinyin_case_insensitive: false,
+
+            _haystack_str: PhantomData,
         }
     }
 
@@ -74,7 +91,7 @@ impl<'a> PinyinMatcherBuilder<'a> {
         PinyinNotation::DiletterZrm,
     ];
 
-    pub fn build(self) -> PinyinMatcher<'a> {
+    pub fn build(self) -> PinyinMatcher<'a, HaystackStr> {
         let pattern_string = self.pattern.clone();
         let pattern_s: &str = pattern_string.as_str();
         let pattern_s: &'static str = unsafe { std::mem::transmute(pattern_s) };
@@ -85,7 +102,7 @@ impl<'a> PinyinMatcherBuilder<'a> {
 
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
         PinyinMatcher {
-            regex: regex::RegexBuilder::new(&regex::escape(&self.pattern))
+            regex: regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(&self.pattern_bytes))
                 .case_insensitive(self.case_insensitive)
                 .build()
                 .unwrap(),
@@ -133,6 +150,8 @@ impl<'a> PinyinMatcherBuilder<'a> {
                 notations.into_boxed_slice()
             },
             pinyin_case_insensitive: self.pinyin_case_insensitive,
+
+            _haystack_str: PhantomData,
         }
     }
 }
@@ -141,12 +160,14 @@ impl<'a> PinyinMatcherBuilder<'a> {
 /// TODO: No-pinyin pattern optimization
 /// TODO: Match Ascii only after AsciiFirstLetter; get_pinyins_and_for_each
 /// TODO: Anchors, `*_at`
-/// TODO: UTF-16 and UCS-4
 /// TODO: Unicode normalization
 /// TODO: No-hanzi haystack optimization (0.2/0.9%)
-pub struct PinyinMatcher<'a> {
+pub struct PinyinMatcher<'a, HaystackStr = str>
+where
+    HaystackStr: EncodedStr + ?Sized,
+{
     /// For ASCII-only haystack optimization.
-    regex: regex::Regex,
+    regex: regex::bytes::Regex,
 
     pattern: Box<[PatternChar<'a>]>,
     _pattern_string: String,
@@ -158,6 +179,8 @@ pub struct PinyinMatcher<'a> {
     pinyin_data: Cow<'a, PinyinData>,
     pinyin_notations: Box<[PinyinNotation]>,
     pinyin_case_insensitive: bool,
+
+    _haystack_str: PhantomData<HaystackStr>,
 }
 
 struct PatternChar<'a> {
@@ -214,16 +237,19 @@ impl SubMatch {
     }
 }
 
-impl<'a> PinyinMatcher<'a> {
-    pub fn builder(pattern: &str) -> PinyinMatcherBuilder<'a> {
+impl<'a, HaystackStr> PinyinMatcher<'a, HaystackStr>
+where
+    HaystackStr: EncodedStr + ?Sized,
+{
+    pub fn builder(pattern: &HaystackStr) -> PinyinMatcherBuilder<'a, HaystackStr> {
         PinyinMatcherBuilder::new(pattern)
     }
 
-    pub fn find(&self, haystack: &str) -> Option<Match> {
+    pub fn find(&self, haystack: &HaystackStr) -> Option<Match> {
         self.find_with_is_ascii(haystack, haystack.is_ascii())
     }
 
-    fn find_with_is_ascii(&self, haystack: &str, is_ascii: bool) -> Option<Match> {
+    fn find_with_is_ascii(&self, haystack: &HaystackStr, is_ascii: bool) -> Option<Match> {
         if self.pattern.is_empty() {
             return Some(Match {
                 start: 0,
@@ -233,15 +259,15 @@ impl<'a> PinyinMatcher<'a> {
         }
 
         if is_ascii {
-            return self.regex.find(haystack).map(|m| Match {
-                start: m.start(),
-                end: m.end(),
+            return self.regex.find(haystack.as_bytes()).map(|m| Match {
+                start: m.start() / HaystackStr::ELEMENT_LEN_BYTE,
+                end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
                 is_pattern_partial: false,
             });
         }
 
-        for (i, _c) in haystack.char_indices() {
-            if let Some(submatch) = self.sub_test(&self.pattern, &haystack[i..], 0) {
+        for (i, _c, str) in haystack.char_index_strs() {
+            if let Some(submatch) = self.sub_test(&self.pattern, str, 0) {
                 return Some(Match {
                     start: i,
                     end: i + submatch.len,
@@ -253,9 +279,9 @@ impl<'a> PinyinMatcher<'a> {
         None
     }
 
-    pub fn is_match(&self, haystack: &str) -> bool {
+    pub fn is_match(&self, haystack: &HaystackStr) -> bool {
         if haystack.is_ascii() {
-            return self.regex.is_match(haystack);
+            return self.regex.is_match(haystack.as_bytes());
         }
 
         self.find_with_is_ascii(haystack, false).is_some()
@@ -264,7 +290,7 @@ impl<'a> PinyinMatcher<'a> {
     /// ## Returns
     /// - `Match.start()` is guaranteed to be 0.
     /// - If there are multiple possible matches, the longer ones are preferred. But the result is not guaranteed to be the longest one.
-    pub fn test(&self, haystack: &str) -> Option<Match> {
+    pub fn test(&self, haystack: &HaystackStr) -> Option<Match> {
         if self.pattern.is_empty() {
             return Some(Match {
                 start: 0,
@@ -275,11 +301,11 @@ impl<'a> PinyinMatcher<'a> {
 
         if haystack.is_ascii() {
             // TODO: Use regex-automata's anchored searches?
-            return match self.regex.find(haystack) {
+            return match self.regex.find(haystack.as_bytes()) {
                 Some(m) => match m.start() {
                     0 => Some(Match {
                         start: 0,
-                        end: m.end(),
+                        end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
                         is_pattern_partial: false,
                     }),
                     _ => None,
@@ -303,18 +329,18 @@ impl<'a> PinyinMatcher<'a> {
     fn sub_test(
         &self,
         pattern: &[PatternChar],
-        haystack: &str,
+        haystack: &HaystackStr,
         matched_len: usize,
     ) -> Option<SubMatch> {
         debug_assert!(!pattern.is_empty());
 
-        let (haystack_c, haystack_next) = {
-            let mut chars = haystack.chars();
-            match chars.next() {
-                Some(c) => (c, chars.as_str()),
+        let (haystack_c, haystack_c_len, haystack_next) = {
+            match haystack.char_len_next_strs().next() {
+                Some(v) => v,
                 None => return None,
             }
         };
+        let matched_len = matched_len + haystack_c_len;
 
         let (pattern_c, pattern_next) = pattern.split_first().unwrap();
 
@@ -323,7 +349,6 @@ impl<'a> PinyinMatcher<'a> {
             false => haystack_c == pattern_c.c,
         } {
             // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
-            let matched_len = matched_len + haystack_c.len_utf8();
             return if pattern_next.is_empty() {
                 Some(SubMatch::new(matched_len, false))
             } else {
@@ -334,7 +359,8 @@ impl<'a> PinyinMatcher<'a> {
         for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
             for &notation in self.pinyin_notations.iter() {
                 let pinyin = pinyin.notation(notation).unwrap();
-                if let Some(submatch) = self.sub_test_pinyin(pattern, haystack, matched_len, pinyin)
+                if let Some(submatch) =
+                    self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin)
                 {
                     return Some(submatch);
                 }
@@ -351,8 +377,8 @@ impl<'a> PinyinMatcher<'a> {
     fn sub_test_pinyin(
         &self,
         pattern: &[PatternChar],
-        haystack: &str,
-        matched_len: usize,
+        haystack_next: &HaystackStr,
+        matched_len_next: usize,
         pinyin: &str,
     ) -> Option<SubMatch> {
         debug_assert!(!pattern.is_empty());
@@ -363,22 +389,19 @@ impl<'a> PinyinMatcher<'a> {
             false => pattern[0].s,
         };
 
-        let haystack_c_len = haystack.chars().next().unwrap().len_utf8();
-        let matched_len = matched_len + haystack_c_len;
-
         if pattern_s.len() < pinyin.len() {
             if self.is_pattern_partial && pinyin.starts_with(pattern_s) {
-                return Some(SubMatch::new(matched_len, true));
+                return Some(SubMatch::new(matched_len_next, true));
             }
         } else if pattern_s.starts_with(pinyin) {
             if pattern_s.len() == pinyin.len() {
-                return Some(SubMatch::new(matched_len, false));
+                return Some(SubMatch::new(matched_len_next, false));
             }
 
             if let Some(submatch) = self.sub_test(
                 &pattern[pinyin.chars().count()..],
-                &haystack[haystack_c_len..],
-                matched_len,
+                haystack_next,
+                matched_len_next,
             ) {
                 return Some(submatch);
             }
@@ -400,7 +423,7 @@ mod test {
     fn ordered_pinyin_notations() {
         assert_eq!(
             PinyinNotation::all().iter().count(),
-            PinyinMatcherBuilder::ORDERED_PINYIN_NOTATIONS.len()
+            PinyinMatcherBuilder::<str>::ORDERED_PINYIN_NOTATIONS.len()
         )
     }
 
@@ -437,6 +460,44 @@ mod test {
         assert_match(matcher.test("凯尔"), Some((0, 6)));
         // AsciiFirstLetter is preferred
         assert_match(matcher.test("柯尔"), Some((0, 6)));
+    }
+
+    #[cfg(feature = "encoding")]
+    #[test]
+    fn test_u16() {
+        use widestring::u16str;
+
+        let matcher = PinyinMatcher::builder(u16str!("xing"))
+            .pinyin_notations(PinyinNotation::Ascii)
+            .build();
+        assert_match(matcher.test(u16str!("")), None);
+        assert_match(matcher.test(u16str!("xing")), Some((0, 4)));
+        assert_match(matcher.test(u16str!("XiNG")), Some((0, 4)));
+        assert_match(matcher.test(u16str!("行")), Some((0, 1)));
+
+        let matcher = PinyinMatcher::builder(u16str!("ke"))
+            .pinyin_notations(PinyinNotation::Ascii)
+            .build();
+        assert_match(matcher.test(u16str!("ke")), Some((0, 2)));
+        assert_match(matcher.test(u16str!("科")), Some((0, 1)));
+        assert_match(matcher.test(u16str!("k鹅")), Some((0, 2)));
+        assert_match(matcher.test(u16str!("凯尔")), None);
+
+        let matcher = PinyinMatcher::builder(u16str!(""))
+            .pinyin_notations(PinyinNotation::Ascii)
+            .build();
+        assert_match(matcher.test(u16str!("")), Some((0, 0)));
+        assert_match(matcher.test(u16str!("abc")), Some((0, 0)));
+
+        let matcher = PinyinMatcher::builder(u16str!("ke"))
+            .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+            .build();
+        assert_match(matcher.test(u16str!("ke")), Some((0, 2)));
+        assert_match(matcher.test(u16str!("科")), Some((0, 1)));
+        assert_match(matcher.test(u16str!("k鹅")), Some((0, 2)));
+        assert_match(matcher.test(u16str!("凯尔")), Some((0, 2)));
+        // AsciiFirstLetter is preferred
+        assert_match(matcher.test(u16str!("柯尔")), Some((0, 2)));
     }
 
     #[test]

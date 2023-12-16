@@ -66,6 +66,7 @@ dependencies = [
  "arraystring",
  "bitflags",
  "regex",
+ "widestring",
 ]
 
 [[package]]
@@ -75,6 +76,7 @@ dependencies = [
  "diplomat",
  "diplomat-runtime",
  "ib-pinyin",
+ "widestring",
 ]
 
 [[package]]
@@ -200,3 +202,9 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "widestring"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "653f141f39ec16bba3c5abe400a0c60da7468261cc2cbf36805022876bc721a8"
