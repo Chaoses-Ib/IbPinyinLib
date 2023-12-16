@@ -4,6 +4,7 @@ members = ["bindings/c"]
 [workspace.package]
 version = "0.2.0"
 authors = ["Chaoses-Ib"]
+description = "一个高性能拼音匹配库"
 homepage = "https://github.com/Chaoses-Ib/IbPinyinLib"
 repository = "https://github.com/Chaoses-Ib/IbPinyinLib"
 license = "MIT"
@@ -14,6 +15,7 @@ name = "ib-pinyin"
 edition = "2021"
 version.workspace = true
 authors.workspace = true
+description.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
