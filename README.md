@@ -20,7 +20,7 @@
 - 支持 Unicode 辅助平面汉字。
 
 ## 支持语言
-### [Rust](src/README.md)
+### [Rust](src)
 [![crates.io](https://img.shields.io/crates/v/ib-pinyin.svg)](https://crates.io/crates/ib-pinyin)
 [![Documentation](https://docs.rs/ib-pinyin/badge.svg)](https://docs.rs/ib-pinyin)
 
@@ -33,7 +33,7 @@ let matcher = PinyinMatcher::builder("pysousuoeve")
 assert!(matcher.is_match("拼音搜索Everything"));
 ```
 
-### [C](bindings/c/README.md)
+### [C](bindings/c)
 ```c
 #include <ib_pinyin/ib_pinyin.h>
 #include <ib_pinyin/notation.h>
@@ -49,9 +49,9 @@ bool is_match = ib_pinyin_is_match_u32c(U"pysousuoeve", U"拼音搜索Everything
 ```
 
 ### C++
-[原实现](C++/README.md)（停止维护）
+[原实现](C++)（停止维护）
 
-### [AutoHotkey v2](bindings/ahk2/README.md)
+### [AutoHotkey v2](bindings/ahk2)
 ```ahk
 #Include <IbPinyin>
 
