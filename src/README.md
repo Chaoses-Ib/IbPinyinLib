@@ -1,4 +1,8 @@
 # IbPinyinLib.Rust
+[![crates.io](https://img.shields.io/crates/v/ib-pinyin.svg)](https://crates.io/crates/ib-pinyin)
+[![Documentation](https://docs.rs/ib-pinyin/badge.svg)](https://docs.rs/ib-pinyin)
+[![License](https://img.shields.io/crates/l/ib-pinyin.svg)](../LICENSE.txt)
+
 ## Usage
 ```rust
 use ib_pinyin::{matcher::PinyinMatcher, pinyin::PinyinNotation};

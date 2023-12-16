@@ -1,6 +1,11 @@
 # IbPinyinLib
+[![License](https://img.shields.io/crates/l/ib-pinyin.svg)](LICENSE.txt)
+
 ## 语言
 ### [Rust](src/README.md)
+[![crates.io](https://img.shields.io/crates/v/ib-pinyin.svg)](https://crates.io/crates/ib-pinyin)
+[![Documentation](https://docs.rs/ib-pinyin/badge.svg)](https://docs.rs/ib-pinyin)
+
 ```rust
 use ib_pinyin::{matcher::PinyinMatcher, pinyin::PinyinNotation};
 
