@@ -24,7 +24,11 @@ keywords.workspace = true
 [dependencies]
 arraystring = "0.3.0"
 bitflags = "2.4.1"
-regex = "1.10.2"
+# TODO: perf-dfa-full
+regex = { version = "1.10.2", default-features = false, features = [
+    "std",
+    "perf",
+] }
 widestring = { version = "1.0.2", optional = true }
 
 [features]

@@ -102,10 +102,20 @@ where
 
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
         PinyinMatcher {
-            regex: regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(&self.pattern_bytes))
-                .case_insensitive(self.case_insensitive)
-                .build()
-                .unwrap(),
+            // ASCII-only haystack optimization
+            regex: match self.pattern_bytes.is_ascii() {
+                true => Some(
+                    regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(
+                        &self.pattern_bytes,
+                    ))
+                    .unicode(false)
+                    .case_insensitive(self.case_insensitive)
+                    .build()
+                    .unwrap(),
+                ),
+                // ASCII-only haystack with non-ASCII pattern optimization
+                false => None,
+            },
 
             pattern: pattern_string
                 .char_indices()
@@ -156,7 +166,6 @@ where
     }
 }
 
-/// TODO: ASCII-only haystack with non-ASCII pattern optimization
 /// TODO: No-pinyin pattern optimization
 /// TODO: Match Ascii only after AsciiFirstLetter; get_pinyins_and_for_each
 /// TODO: Anchors, `*_at`
@@ -167,7 +176,7 @@ where
     HaystackStr: EncodedStr + ?Sized,
 {
     /// For ASCII-only haystack optimization.
-    regex: regex::bytes::Regex,
+    regex: Option<regex::bytes::Regex>,
 
     pattern: Box<[PatternChar<'a>]>,
     _pattern_string: String,
@@ -259,11 +268,17 @@ where
         }
 
         if is_ascii {
-            return self.regex.find(haystack.as_bytes()).map(|m| Match {
-                start: m.start() / HaystackStr::ELEMENT_LEN_BYTE,
-                end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                is_pattern_partial: false,
-            });
+            return self
+                .regex
+                .as_ref()
+                .map(|regex| {
+                    regex.find(haystack.as_bytes()).map(|m| Match {
+                        start: m.start() / HaystackStr::ELEMENT_LEN_BYTE,
+                        end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
+                        is_pattern_partial: false,
+                    })
+                })
+                .flatten();
         }
 
         for (i, _c, str) in haystack.char_index_strs() {
@@ -281,7 +296,11 @@ where
 
     pub fn is_match(&self, haystack: &HaystackStr) -> bool {
         if haystack.is_ascii() {
-            return self.regex.is_match(haystack.as_bytes());
+            return self
+                .regex
+                .as_ref()
+                .map(|regex| regex.is_match(haystack.as_bytes()))
+                .unwrap_or(false);
         }
 
         self.find_with_is_ascii(haystack, false).is_some()
@@ -301,17 +320,20 @@ where
 
         if haystack.is_ascii() {
             // TODO: Use regex-automata's anchored searches?
-            return match self.regex.find(haystack.as_bytes()) {
-                Some(m) => match m.start() {
-                    0 => Some(Match {
-                        start: 0,
-                        end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                        is_pattern_partial: false,
-                    }),
-                    _ => None,
-                },
-                None => None,
-            };
+            return self
+                .regex
+                .as_ref()
+                .map(|regex| {
+                    regex
+                        .find(haystack.as_bytes())
+                        .filter(|m| m.start() == 0)
+                        .map(|m| Match {
+                            start: 0,
+                            end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
+                            is_pattern_partial: false,
+                        })
+                })
+                .flatten();
         }
 
         self.sub_test(&self.pattern, haystack, 0)
