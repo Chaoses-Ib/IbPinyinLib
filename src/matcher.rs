@@ -143,7 +143,6 @@ impl<'a> PinyinMatcherBuilder<'a> {
 /// TODO: Anchors, `*_at`
 /// TODO: UTF-16 and UCS-4
 /// TODO: Unicode normalization
-/// TODO: Tail-call optimization
 /// TODO: No-hanzi haystack optimization (0.2/0.9%)
 pub struct PinyinMatcher<'a> {
     /// For ASCII-only haystack optimization.
@@ -242,7 +241,7 @@ impl<'a> PinyinMatcher<'a> {
         }
 
         for (i, _c) in haystack.char_indices() {
-            if let Some(submatch) = self.sub_test(&self.pattern, &haystack[i..]) {
+            if let Some(submatch) = self.sub_test(&self.pattern, &haystack[i..], 0) {
                 return Some(Match {
                     start: i,
                     end: i + submatch.len,
@@ -289,7 +288,7 @@ impl<'a> PinyinMatcher<'a> {
             };
         }
 
-        self.sub_test(&self.pattern, haystack)
+        self.sub_test(&self.pattern, haystack, 0)
             .map(|submatch| Match {
                 start: 0,
                 end: submatch.len,
@@ -299,7 +298,14 @@ impl<'a> PinyinMatcher<'a> {
 
     /// ## Arguments
     /// - `pattern`: Not empty.
-    fn sub_test(&self, pattern: &[PatternChar], haystack: &str) -> Option<SubMatch> {
+    /// - `haystack`
+    /// - `matched_len`: For tail-call optimization.
+    fn sub_test(
+        &self,
+        pattern: &[PatternChar],
+        haystack: &str,
+        matched_len: usize,
+    ) -> Option<SubMatch> {
         debug_assert!(!pattern.is_empty());
 
         let (haystack_c, haystack_next) = {
@@ -317,22 +323,19 @@ impl<'a> PinyinMatcher<'a> {
             false => haystack_c == pattern_c.c,
         } {
             // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
+            let matched_len = matched_len + haystack_c.len_utf8();
             return if pattern_next.is_empty() {
-                Some(SubMatch::new(haystack_c.len_utf8(), false))
+                Some(SubMatch::new(matched_len, false))
             } else {
-                self.sub_test(pattern_next, haystack_next).map(|submatch| {
-                    SubMatch::new(
-                        haystack_c.len_utf8() + submatch.len,
-                        submatch.is_pattern_partial,
-                    )
-                })
+                self.sub_test(pattern_next, haystack_next, matched_len)
             };
         }
 
         for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
             for &notation in self.pinyin_notations.iter() {
                 let pinyin = pinyin.notation(notation).unwrap();
-                if let Some(submatch) = self.sub_test_pinyin(pattern, haystack, pinyin) {
+                if let Some(submatch) = self.sub_test_pinyin(pattern, haystack, matched_len, pinyin)
+                {
                     return Some(submatch);
                 }
             }
@@ -343,10 +346,13 @@ impl<'a> PinyinMatcher<'a> {
 
     /// ## Arguments
     /// - `pattern`: Not empty.
+    /// - `haystack`
+    /// - `matched_len`: For tail-call optimization.
     fn sub_test_pinyin(
         &self,
         pattern: &[PatternChar],
         haystack: &str,
+        matched_len: usize,
         pinyin: &str,
     ) -> Option<SubMatch> {
         debug_assert!(!pattern.is_empty());
@@ -358,24 +364,23 @@ impl<'a> PinyinMatcher<'a> {
         };
 
         let haystack_c_len = haystack.chars().next().unwrap().len_utf8();
+        let matched_len = matched_len + haystack_c_len;
 
         if pattern_s.len() < pinyin.len() {
             if self.is_pattern_partial && pinyin.starts_with(pattern_s) {
-                return Some(SubMatch::new(haystack_c_len, true));
+                return Some(SubMatch::new(matched_len, true));
             }
         } else if pattern_s.starts_with(pinyin) {
             if pattern_s.len() == pinyin.len() {
-                return Some(SubMatch::new(haystack_c_len, false));
+                return Some(SubMatch::new(matched_len, false));
             }
 
             if let Some(submatch) = self.sub_test(
                 &pattern[pinyin.chars().count()..],
                 &haystack[haystack_c_len..],
+                matched_len,
             ) {
-                return Some(SubMatch::new(
-                    haystack_c_len + submatch.len,
-                    submatch.is_pattern_partial,
-                ));
+                return Some(submatch);
             }
         }
 
