@@ -17,3 +17,7 @@ assert!(matcher.is_match("拼音搜索Everything"));
 ```sh
 cargo hack test --feature-powerset
 ```
+
+## See also
+- [rust-pinyin: 汉字转拼音](https://github.com/mozillazg/rust-pinyin)
+- [samlink/rust-pinyin: Chinese pinyin initials in rust](https://github.com/samlink/rust_pinyin)
