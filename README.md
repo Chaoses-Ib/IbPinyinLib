@@ -1,6 +1,6 @@
 # IbPinyinLib
 ## 语言
-### Rust
+### [Rust](src/README.md)
 ```rust
 use ib_pinyin::{matcher::PinyinMatcher, pinyin::PinyinNotation};
 
@@ -10,7 +10,7 @@ let matcher = PinyinMatcher::builder("pysousuoeve")
 assert!(matcher.is_match("拼音搜索Everything"));
 ```
 
-### C
+### [C](bindings/c/README.md)
 ```c
 #include <ib_pinyin/ib_pinyin.h>
 #include <ib_pinyin/notation.h>
@@ -27,6 +27,17 @@ bool is_match = ib_pinyin_is_match_u32c(U"pysousuoeve", U"拼音搜索Everything
 
 ### C++
 [原实现](C++/README.md)（停止维护）
+
+### [AutoHotkey v2](bindings/ahk2/README.md)
+```ahk
+#Include <IbPinyin>
+
+IsMatch := IbPinyin_IsMatch("pysousuoeve", "拼音搜索Everything", IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
+
+是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything")
+是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything", 拼音_简拼 | 拼音_全拼)
+```
+[下载](https://github.com/Chaoses-Ib/IbPinyinLib/releases)
 
 ## 相关项目
 - [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)
