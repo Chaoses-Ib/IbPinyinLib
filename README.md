@@ -62,6 +62,36 @@ IsMatch := IbPinyin_IsMatch("pysousuoeve", "拼音搜索Everything", IbPinyin_As
 ```
 [下载](https://github.com/Chaoses-Ib/IbPinyinLib/releases)
 
-## 相关项目
-- [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)
-- [pinyin-data: 汉字拼音数据](https://github.com/Chaoses-Ib/pinyin-data)
+## 其它拼音相关项目
+语言 | 库 | 拼音 | 双拼 | 词典 | 匹配 | 其它
+--- | --- | --- | --- | --- | --- | ---
+Rust <br /> (C, AHK2) | IbPinyinLib | ✔️ Unicode | ✔️ | ❌ | ✔️ | 性能优先；支持 Unicode 辅助平面汉字
+Rust <br /> ([Node.js](https://github.com/Brooooooklyn/pinyin)) | [rust-pinyin](https://github.com/mozillazg/rust-pinyin) | ✔️ Unicode | ❌ | ❌ | ❌
+Rust | [rust-pinyin](https://github.com/samlink/rust_pinyin) | 简拼 | ❌ | ❌ | ❌
+C# | [ToolGood.Words.Pinyin](https://github.com/toolgood/ToolGood.Words.Pinyin) | ✔️ | ❌ | ❌ | 单编码？
+C# | [TinyPinyin.Net](https://github.com/hstarorg/TinyPinyin.Net) | ✔️ | ❌ | ❌ | ❌
+C# | [Romanization.NET](https://github.com/zedseven/Romanization.NET) | Unicode | ❌ | | ❌ | 支持日文、韩文、俄文、希腊文
+Java | [PinIn](https://github.com/Towdium/PinIn) | ✔️ | ✔️ 小鹤、自然码 | ❌ | ✔️ | 支持注音输入法、模糊音
+Java | [TinyPinyin](https://github.com/promeG/TinyPinyin) | ✔️ | ❌ | ✔️ | ❌
+Go | [go-pinyin](https://github.com/mozillazg/go-pinyin) | ✔️ | ❌ | ✔️ | ❌
+Python | [python-pinyin](https://github.com/mozillazg/python-pinyin) | ✔️ | ❌ | ✔️ | ❌
+TS | [pinyin-pro](https://github.com/zh-lx/pinyin-pro) | ✔️ | ❌ | ❌ | ✔️
+JS | [pinyin-match](https://github.com/xmflswood/pinyin-match) | ✔️ | ❌ | ❌ | 单编码 | 匹配时忽略空白
+JS | [pinyin-engine](https://github.com/aui/pinyin-engine) | ✔️ | ❌ | ❌ | 单编码
+JS | [pinyin](https://github.com/hotoo/pinyin) | ✔️ | ❌ | ✔️ | ❌
+JS | [pinyinjs](https://github.com/sxei/pinyinjs) | ✔️ Unicode | ❌ | ❌ | ❌
+Perl <br /> ([Rust](https://github.com/chowdhurya/rust-unidecode/), [Java](https://github.com/xuender/unidecode), [Python](https://github.com/avian2/unidecode), [Ruby](http://www.rubydoc.info/gems/unidecode/1.0.0/frames), [JS](https://www.npmjs.org/package/unidecode), [PHP](https://github.com/silverstripe-labs/silverstripe-unidecode)) | [Text::Unidecode](https://metacpan.org/pod/Text::Unidecode) | ✔️ | ❌ | ❌ | ❌ | 支持文字广泛
+
+数据库：
+- [Simple tokenizer: 支持中文和拼音的 SQLite fts5 全文搜索扩展 ｜ A SQLite3 fts5 tokenizer which supports Chinese and PinYin](https://github.com/wangfenjin/simple)
+
+文件管理：
+- [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 IbPinyinLib）
+- [Listary](https://www.listary.com/)（简拼、全拼）
+- [Directory Opus](https://github.com/Chaoses-Ib/DirectoryOpus)（仅简拼）
+- Total Commander：[QuickSearch eXtended](https://www.ghisler.ch/board/viewtopic.php?t=22592)（仅简拼）
+
+文本编辑：
+- Visual Studio
+  - [ChinesePinyinIntelliSenseExtender: VisualStudio中文代码拼音补全拓展](https://github.com/stratosblue/ChinesePinyinIntelliSenseExtender)
+  - [VSIXChineseCompletion: Visual Studio (CSharp) 中文代码补全 (使用拼音补全中文)](https://github.com/sharpoverflow/VSIXChineseCompletion)

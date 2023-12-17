@@ -3,4 +3,7 @@
     "[rust]": {
         "editor.defaultFormatter": "rust-lang.rust-analyzer"
     },
+    "[markdown]": {
+        "editor.formatOnSave": false,
+    }
 }
