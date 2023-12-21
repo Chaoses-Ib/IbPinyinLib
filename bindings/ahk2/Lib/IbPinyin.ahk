@@ -1,9 +1,11 @@
 ; IbPinyinLib
 ; https://github.com/Chaoses-Ib/IbPinyinLib
 
-#Requires AutoHotkey v2.0
+; Use IbPinyin for 64-bit AutoHotkey, IbPinyin32 for 32-bit AutoHotkey
+#Requires AutoHotkey v2.0 64-bit
 
-#DllLoad IbPinyin.dll
+; #DllLoad cannot be executed conditionally
+#DllLoad IbPinyin64.dll
 
 IbPinyin_Unicode := 0x8
 IbPinyin_Ascii := 0x2
@@ -18,7 +20,8 @@ IbPinyin_DiletterZrm := 0x200
 
 IbPinyin_IsMatch(pattern, haystack, notations := IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
 {
-    return DllCall("IbPinyin\ib_pinyin_is_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl Int") = 1
+    ; If DllCall's first parameter is a literal string such as "MulDiv" and the DLL containing the function is ordinarily loaded before the script starts, or has been successfully loaded with #DllLoad, the string is automatically resolved to a function address.
+    return DllCall("IbPinyin64\ib_pinyin_is_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl Int") = 1
 }
 
 拼音_简拼 := 1

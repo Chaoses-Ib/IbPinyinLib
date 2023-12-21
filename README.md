@@ -71,7 +71,7 @@ Rust | [rust-pinyin](https://github.com/samlink/rust_pinyin) | 简拼 | ❌ | �
 C# | [ToolGood.Words.Pinyin](https://github.com/toolgood/ToolGood.Words.Pinyin) | ✔️ | ❌ | ❌ | 单编码？
 C# | [TinyPinyin.Net](https://github.com/hstarorg/TinyPinyin.Net) | ✔️ | ❌ | ❌ | ❌
 C# | [Romanization.NET](https://github.com/zedseven/Romanization.NET) | Unicode | ❌ | | ❌ | 支持日文、韩文、俄文、希腊文
-Java | [PinIn](https://github.com/Towdium/PinIn) | ✔️ | ✔️ 小鹤、自然码 | ❌ | ✔️ | 支持注音输入法、模糊音
+Java | [PinIn](https://github.com/Towdium/PinIn) | ✔️ | ✔️ | ❌ | ✔️ | 支持注音输入法、模糊音
 Java | [TinyPinyin](https://github.com/promeG/TinyPinyin) | ✔️ | ❌ | ✔️ | ❌
 Go | [go-pinyin](https://github.com/mozillazg/go-pinyin) | ✔️ | ❌ | ✔️ | ❌
 Python | [python-pinyin](https://github.com/mozillazg/python-pinyin) | ✔️ | ❌ | ✔️ | ❌
@@ -85,9 +85,13 @@ Perl <br /> ([Rust](https://github.com/chowdhurya/rust-unidecode/), [Java](https
 数据库：
 - [Simple tokenizer: 支持中文和拼音的 SQLite fts5 全文搜索扩展 ｜ A SQLite3 fts5 tokenizer which supports Chinese and PinYin](https://github.com/wangfenjin/simple)
 
-文件管理：
+文件搜索/启动器：
 - [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 IbPinyinLib）
 - [Listary](https://www.listary.com/)（简拼、全拼）
+
+文件管理：
+- 资源管理器
+  - [资源管理器拼音搜索扩展](https://github.com/sxzxs/explore_select_items)（基于 IbPinyinLib）
 - [Directory Opus](https://github.com/Chaoses-Ib/DirectoryOpus)（仅简拼）
 - Total Commander：[QuickSearch eXtended](https://www.ghisler.ch/board/viewtopic.php?t=22592)（仅简拼）
 
