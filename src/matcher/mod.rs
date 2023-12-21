@@ -92,13 +92,56 @@ where
     ];
 
     pub fn build(self) -> PinyinMatcher<'a, HaystackStr> {
-        let pattern_string = self.pattern.clone();
+        let pattern_string = self.pattern;
         let pattern_s: &str = pattern_string.as_str();
         let pattern_s: &'static str = unsafe { std::mem::transmute(pattern_s) };
 
         let pattern_string_lowercase = pattern_string.to_mono_lowercase();
         let pattern_s_lowercase: &str = pattern_string_lowercase.as_str();
         let pattern_s_lowercase: &'static str = unsafe { std::mem::transmute(pattern_s_lowercase) };
+
+        let (notations_prefix_group, unprefixable_pinyin_notations) = match self
+            .pinyin_notations
+            .intersection(
+                PinyinNotation::AsciiFirstLetter
+                    | PinyinNotation::Ascii
+                    | PinyinNotation::AsciiTone,
+            )
+            .bits()
+            .count_ones()
+        {
+            count if count > 1 => {
+                let mut notations = Vec::with_capacity(count as usize);
+                if self
+                    .pinyin_notations
+                    .contains(PinyinNotation::AsciiFirstLetter)
+                {
+                    notations.push(PinyinNotation::AsciiFirstLetter);
+                }
+                if self.pinyin_notations.contains(PinyinNotation::Ascii) {
+                    notations.push(PinyinNotation::Ascii);
+                }
+                if self.pinyin_notations.contains(PinyinNotation::AsciiTone) {
+                    notations.push(PinyinNotation::AsciiTone);
+                }
+                (
+                    notations,
+                    self.pinyin_notations.difference(
+                        PinyinNotation::AsciiFirstLetter
+                            | PinyinNotation::Ascii
+                            | PinyinNotation::AsciiTone,
+                    ),
+                )
+            }
+            _ => (Vec::new(), self.pinyin_notations),
+        };
+        let mut notations =
+            Vec::with_capacity(unprefixable_pinyin_notations.bits().count_ones() as usize);
+        for notation in Self::ORDERED_PINYIN_NOTATIONS {
+            if unprefixable_pinyin_notations.contains(notation) {
+                notations.push(notation);
+            }
+        }
 
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
         PinyinMatcher {
@@ -150,15 +193,8 @@ where
                 }
                 None => Cow::Owned(PinyinData::new(self.pinyin_notations)),
             },
-            pinyin_notations: {
-                let mut notations = Vec::new();
-                for notation in Self::ORDERED_PINYIN_NOTATIONS {
-                    if self.pinyin_notations.contains(notation) {
-                        notations.push(notation);
-                    }
-                }
-                notations.into_boxed_slice()
-            },
+            pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
+            pinyin_notations: notations.into_boxed_slice(),
             pinyin_case_insensitive: self.pinyin_case_insensitive,
 
             _haystack_str: PhantomData,
@@ -167,7 +203,6 @@ where
 }
 
 /// TODO: No-pinyin pattern optimization
-/// TODO: Match Ascii only after AsciiFirstLetter; get_pinyins_and_for_each
 /// TODO: Anchors, `*_at`
 /// TODO: Unicode normalization
 /// TODO: No-hanzi haystack optimization (0.2/0.9%)
@@ -186,6 +221,7 @@ where
     is_pattern_partial: bool,
 
     pinyin_data: Cow<'a, PinyinData>,
+    pinyin_notations_prefix_group: Box<[PinyinNotation]>,
     pinyin_notations: Box<[PinyinNotation]>,
     pinyin_case_insensitive: bool,
 
@@ -378,13 +414,24 @@ where
             };
         }
 
+        // TODO: get_pinyins_and_for_each?
         for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
+            for &notation in self.pinyin_notations_prefix_group.iter() {
+                let pinyin = pinyin.notation(notation).unwrap();
+                match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                    (true, Some(submatch)) => return Some(submatch),
+                    (true, None) => (),
+                    (false, None) => break,
+                    (false, Some(_)) => unreachable!(),
+                }
+            }
             for &notation in self.pinyin_notations.iter() {
                 let pinyin = pinyin.notation(notation).unwrap();
-                if let Some(submatch) =
-                    self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin)
-                {
-                    return Some(submatch);
+                match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                    (true, Some(submatch)) => return Some(submatch),
+                    (true, None) => (),
+                    (false, None) => (),
+                    (false, Some(_)) => unreachable!(),
                 }
             }
         }
@@ -396,13 +443,16 @@ where
     /// - `pattern`: Not empty.
     /// - `haystack`
     /// - `matched_len`: For tail-call optimization.
+    ///
+    /// ## Returns
+    /// (pinyin_matched, submatch)
     fn sub_test_pinyin(
         &self,
         pattern: &[PatternChar],
         haystack_next: &HaystackStr,
         matched_len_next: usize,
         pinyin: &str,
-    ) -> Option<SubMatch> {
+    ) -> (bool, Option<SubMatch>) {
         debug_assert!(!pattern.is_empty());
         debug_assert_eq!(pinyin, pinyin.to_lowercase());
 
@@ -413,11 +463,11 @@ where
 
         if pattern_s.len() < pinyin.len() {
             if self.is_pattern_partial && pinyin.starts_with(pattern_s) {
-                return Some(SubMatch::new(matched_len_next, true));
+                return (true, Some(SubMatch::new(matched_len_next, true)));
             }
         } else if pattern_s.starts_with(pinyin) {
             if pattern_s.len() == pinyin.len() {
-                return Some(SubMatch::new(matched_len_next, false));
+                return (true, Some(SubMatch::new(matched_len_next, false)));
             }
 
             if let Some(submatch) = self.sub_test(
@@ -425,11 +475,13 @@ where
                 haystack_next,
                 matched_len_next,
             ) {
-                return Some(submatch);
+                return (true, Some(submatch));
             }
+
+            return (true, None);
         }
 
-        None
+        (false, None)
     }
 }
 
