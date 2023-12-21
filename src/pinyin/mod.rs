@@ -53,8 +53,7 @@ pub struct PinyinData {
     inited_notations: notation::AtomicPinyinNotation,
 
     ascii: OptionalPinyinStringArray,
-    // TODO
-    // ascii_tone: OptionalPinyinStringArray,
+    ascii_tone: OptionalPinyinStringArray,
     // ascii_first_letter: Option<Box<[u8]>>,
     diletter_abc: OptionalPinyinStringArray,
     diletter_jiajia: OptionalPinyinStringArray,
@@ -70,7 +69,7 @@ impl PinyinData {
         let mut pinyin_data = Self {
             inited_notations: PinyinNotation::Unicode.into(),
             ascii: Default::default(),
-            // ascii_tone: Default::default(),
+            ascii_tone: Default::default(),
             // ascii_first_letter: Default::default(),
             diletter_abc: Default::default(),
             diletter_jiajia: Default::default(),
@@ -88,8 +87,7 @@ impl PinyinData {
         match notation {
             PinyinNotation::Unicode => unreachable!(),
             PinyinNotation::Ascii => &self.ascii,
-            // TODO
-            PinyinNotation::AsciiTone => &self.ascii,
+            PinyinNotation::AsciiTone => &self.ascii_tone,
             PinyinNotation::AsciiFirstLetter => unreachable!(),
             PinyinNotation::DiletterAbc => &self.diletter_abc,
             PinyinNotation::DiletterJiajia => &self.diletter_jiajia,
@@ -133,7 +131,19 @@ impl PinyinData {
                     #[cfg(feature = "inmut-data")]
                     this.ascii.get_or_init(init);
                 }
-                PinyinNotation::AsciiTone => todo!(),
+                PinyinNotation::AsciiTone => {
+                    let init = || {
+                        data::PINYINS
+                            .iter()
+                            .map(|py| notation::unicode_to_ascii_tone(py))
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice()
+                    };
+                    #[cfg(not(feature = "inmut-data"))]
+                    this.ascii_tone.get_or_insert_with(init);
+                    #[cfg(feature = "inmut-data")]
+                    this.ascii_tone.get_or_init(init);
+                }
                 _ => {
                     this.init_notations(PinyinNotation::Ascii);
 
@@ -330,14 +340,14 @@ mod tests {
 
     #[test]
     fn get_pinyins() {
-        let data = PinyinData::new(PinyinNotation::all() - PinyinNotation::AsciiTone);
+        let data = PinyinData::new(PinyinNotation::all());
 
         assert_eq!(data.get_pinyins('中').count(), 2);
 
         for pinyin in data.get_pinyins('中') {
             println!("{:?}", pinyin);
 
-            for notation in (PinyinNotation::all() - PinyinNotation::AsciiTone).iter() {
+            for notation in PinyinNotation::all().iter() {
                 assert!(pinyin.notation(notation).is_some_and(|py| !py.is_empty()));
             }
         }

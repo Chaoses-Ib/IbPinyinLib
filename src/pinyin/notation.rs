@@ -1,7 +1,8 @@
 use super::{Pinyin, PinyinString};
 
 bitflags::bitflags! {
-    /// All pinyin notations are in lower case (`py.to_lowercase() == py`).
+    /// - All pinyin notations are in lower case (`py.to_lowercase() == py`).
+    /// - All pinyin notations are no more than 7 characters long (`py.len() <= 7`).
     ///
     /// ## Others
     /// TODO: doc alias does not work
@@ -143,6 +144,39 @@ pub(super) fn unicode_to_ascii(unicode: &str) -> PinyinString {
         }
     }
     ascii
+}
+
+pub(super) fn unicode_to_ascii_tone(unicode: &str) -> PinyinString {
+    let mut ascii = unicode_to_ascii(unicode);
+    let tone = match unicode_tone(unicode) {
+        1 => '1',
+        2 => '2',
+        3 => '3',
+        4 => '4',
+        5 => '5',
+        _ => unreachable!(),
+    };
+    unsafe { ascii.push_unchecked(tone) }
+    ascii
+}
+
+fn unicode_tone(unicode: &str) -> u8 {
+    for c in unicode.chars() {
+        match c {
+            'ā' | 'ē' | 'ī' | 'ō' | 'ū' |
+            // 'ê̄'
+            '̄' => return 1,
+            'á' | 'é' | 'ế' | 'í' | 'ó' | 'ú' | 'ǘ' | 'ḿ' | 'ń' => return 2,
+            'ǎ' | 'ě' | 'ǐ' | 'ǒ' | 'ǔ' | 'ǚ' | 'ň' |
+            // 'ê̌'
+            '̌' => return 3,
+            'à' | 'è' | 'ề' | 'ì' | 'ò' | 'ù' | 'ǜ' | 'ǹ' |
+            // 'm̀'
+            '̀' => return 4,
+            _ => (),
+        }
+    }
+    5
 }
 
 pub(super) fn ascii_map_fn(notation: PinyinNotation) -> fn(&str) -> PinyinString {
@@ -468,7 +502,10 @@ mod tests {
     #[test]
     fn unicode_to_ascii_() {
         for unicode in data::PINYINS {
-            println!("{}: {}", unicode, unicode_to_ascii(unicode));
+            let ascii = unicode_to_ascii(unicode);
+            println!("{}: {}", unicode, ascii);
+
+            assert!(ascii.len() <= 6);
         }
     }
 
