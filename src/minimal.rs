@@ -132,4 +132,14 @@ mod tests {
         assert!(is_pinyin_match("", "", notation));
         assert!(is_pinyin_match("", "abc", notation));
     }
+
+    #[cfg(feature = "encoding")]
+    #[test]
+    fn is_pinyin_match_u16_() {
+        is_pinyin_match_u16(
+            widestring::u16str!("zuo"),
+            widestring::u16str!("协作"),
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        );
+    }
 }

@@ -5,6 +5,7 @@
 #Include <IbPinyin>
 
 IsMatch := IbPinyin_IsMatch("pysousuoeve", "拼音搜索Everything", IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
+MsgBox(IsMatch)
 
 是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything")
 MsgBox(是否匹配)

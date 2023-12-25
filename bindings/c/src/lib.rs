@@ -76,3 +76,35 @@ mod ffi {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ::ib_pinyin::pinyin::PinyinNotation;
+    use widestring::{u16cstr, u16str};
+
+    use super::ffi::*;
+
+    #[test]
+    fn is_match_u16() {
+        let pattern = u16str!("zuo");
+        let haystack = u16str!("协作");
+        assert!(ib_pinyin::is_match_u16(
+            unsafe { &*pattern.as_ptr() },
+            pattern.len(),
+            unsafe { &*haystack.as_ptr() },
+            haystack.len(),
+            (PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter).bits()
+        ));
+    }
+
+    #[test]
+    fn is_match_u16c() {
+        let pattern = u16cstr!("zuo");
+        let haystack = u16cstr!("协作");
+        assert!(ib_pinyin::is_match_u16c(
+            unsafe { &*pattern.as_ptr() },
+            unsafe { &*haystack.as_ptr() },
+            (PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter).bits()
+        ));
+    }
+}

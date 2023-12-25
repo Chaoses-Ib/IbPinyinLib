@@ -38,7 +38,8 @@ impl EncodedStr for widestring::U16Str {
     const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u16>();
 
     fn is_ascii(&self) -> bool {
-        self.as_bytes().is_ascii()
+        // TODO: Since this may not be optimized with SIMD, should we use `is_in_range` instead?
+        self.chars_lossy().all(|c| c.is_ascii())
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -67,7 +68,8 @@ impl EncodedStr for widestring::U32Str {
     const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u32>();
 
     fn is_ascii(&self) -> bool {
-        self.as_bytes().is_ascii()
+        // TODO: Since this may not be optimized with SIMD, should we use `is_in_range` instead?
+        self.chars_lossy().all(|c| c.is_ascii())
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -86,5 +88,31 @@ impl EncodedStr for widestring::U32Str {
     fn char_len_next_strs(&self) -> impl Iterator<Item = (char, usize, &Self)> {
         self.char_indices_lossy()
             .map(|(i, c)| (c, 1, &self[i + 1..]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[cfg(feature = "encoding")]
+    #[test]
+    fn u16_is_ascii() {
+        use widestring::u16str;
+
+        assert!(u16str!("").is_ascii());
+        assert!(u16str!("abc").is_ascii());
+        assert!(u16str!("协作").is_ascii() == false);
+    }
+
+    #[cfg(feature = "encoding")]
+    #[test]
+    fn u32_is_ascii() {
+        use widestring::u32str;
+
+        assert!(u32str!("").is_ascii());
+        assert!(u32str!("abc").is_ascii());
+        assert!(u32str!("协作").is_ascii() == false);
     }
 }

@@ -25,7 +25,7 @@ IsMatch := IbPinyin_IsMatch("pysousuoeve", "拼音搜索Everything", IbPinyin_As
 是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything", 拼音_简拼 | 拼音_全拼)
 ```
 
-32 位相比 64 位的 DLL 体积小 0.3 MiB（1.5 → 1.2 MiB），内存占用少 0.2 MiB（2.16 → 1.93 MiB）。
+32 位相比 64 位的 DLL 体积小 0.3 MiB（1.5 → 1.2 MiB），进程总内存占用少 0.2 MiB（2.16 → 1.93 MiB）。
 
 ## Build
 ```pwsh
