@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "ib-pinyin"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "arraystring",
  "bitflags",
@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "ib-pinyin-c"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "diplomat",
  "diplomat-runtime",

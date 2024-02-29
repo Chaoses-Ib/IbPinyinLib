@@ -2,7 +2,7 @@
 members = ["bindings/c"]
 
 [workspace.package]
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Chaoses-Ib"]
 description = "一个高性能拼音匹配库"
 homepage = "https://github.com/Chaoses-Ib/IbPinyinLib"
@@ -13,6 +13,7 @@ keywords = ["pinyin", "cjk"]
 [package]
 name = "ib-pinyin"
 edition = "2021"
+rust-version = "1.75"
 version.workspace = true
 authors.workspace = true
 description.workspace = true
