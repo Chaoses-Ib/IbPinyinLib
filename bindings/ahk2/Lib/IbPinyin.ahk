@@ -24,6 +24,19 @@ IbPinyin_IsMatch(pattern, haystack, notations := IbPinyin_AsciiFirstLetter | IbP
     return DllCall("IbPinyin64\ib_pinyin_is_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl Int") = 1
 }
 
+IbPinyin_FindMatch(pattern, haystack, &start, &end, notations := IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
+{
+    u64 := DllCall("IbPinyin64\ib_pinyin_find_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl UInt64")
+    start := (u64 & 0xFFFFFFFF) + 1
+    end := (u64 >> 32) + 1
+    return start != 0
+}
+
+IbPinyin_Match(pattern, haystack, notations := IbPinyin_AsciiFirstLetter | IbPinyin_Ascii, &start := 0, &end := 0)
+{
+    return IbPinyin_FindMatch(pattern, haystack, &start, &end, notations)
+}
+
 拼音_简拼 := 1
 拼音_全拼 := 2
 拼音_带声调全拼 := 4
@@ -36,6 +49,6 @@ IbPinyin_IsMatch(pattern, haystack, notations := IbPinyin_AsciiFirstLetter | IbP
 拼音_小鹤双拼 := 256
 拼音_自然码双拼 := 512
 
-拼音_匹配(关键字, 文本, 拼音 := 拼音_简拼 | 拼音_全拼) {
-    return IbPinyin_IsMatch(关键字, 文本, 拼音)
+拼音_匹配(关键字, 文本, 拼音 := 拼音_简拼 | 拼音_全拼, &开始 := 0, &结束 := 0) {
+    return IbPinyin_Match(关键字, 文本, 拼音, &开始, &结束)
 }

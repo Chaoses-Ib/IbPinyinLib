@@ -55,10 +55,18 @@ bool is_match = ib_pinyin_is_match_u32c(U"pysousuoeve", U"拼音搜索Everything
 ```ahk
 #Include <IbPinyin>
 
-IsMatch := IbPinyin_IsMatch("pysousuoeve", "拼音搜索Everything", IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
+IsMatch := IbPinyin_Match("pysousuoeve", "拼音搜索Everything")
+; 指定拼音编码
+IsMatch := IbPinyin_Match("pysousuoeve", "拼音搜索Everything", IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
+; 获取匹配范围
+IsMatch := IbPinyin_Match("pysousuoeve", "拼音搜索Everything", IbPinyin_AsciiFirstLetter | IbPinyin_Ascii, &start, &end)
 
+; 中文 API
 是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything")
+; 指定拼音编码
 是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything", 拼音_简拼 | 拼音_全拼)
+; 获取匹配范围
+是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything", 拼音_简拼 | 拼音_全拼, &开始位置, &结束位置)
 ```
 [下载](https://github.com/Chaoses-Ib/IbPinyinLib/releases)
 

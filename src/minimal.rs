@@ -1,5 +1,8 @@
-//! Minimal APIs
+//! # Minimal APIs
 //!
+//! End-to-end APIs that can be used in one call.
+//!
+//! ## Implementation
 //! TODO: Thread-local cache
 
 use std::sync::{OnceLock, RwLock, RwLockReadGuard};
@@ -8,6 +11,8 @@ use crate::{
     matcher::{encoding::EncodedStr, PinyinMatcher},
     pinyin::{PinyinData, PinyinNotation},
 };
+
+pub use crate::matcher::Match;
 
 pub fn pinyin_data() -> &'static PinyinData {
     static PINYIN_DATA: OnceLock<PinyinData> = OnceLock::new();
@@ -125,6 +130,41 @@ pub fn is_pinyin_match_u32(
         .is_match(haystack)
 }
 
+pub fn find_pinyin_match(
+    pattern: &str,
+    haystack: &str,
+    pinyin_notations: PinyinNotation,
+) -> Option<Match> {
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .find(haystack)
+}
+
+#[cfg(feature = "encoding")]
+pub fn find_pinyin_match_u16(
+    pattern: &widestring::U16Str,
+    haystack: &widestring::U16Str,
+    pinyin_notations: PinyinNotation,
+) -> Option<Match> {
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<widestring::U16Str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .find(haystack)
+}
+
+#[cfg(feature = "encoding")]
+pub fn find_pinyin_match_u32(
+    pattern: &widestring::U32Str,
+    haystack: &widestring::U32Str,
+    pinyin_notations: PinyinNotation,
+) -> Option<Match> {
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<widestring::U32Str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .find(haystack)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +191,31 @@ mod tests {
             widestring::u16str!("协作"),
             PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
         );
+    }
+
+    fn assert_match(m: Option<Match>, range: Option<(usize, usize)>) {
+        match (m, range) {
+            (Some(m), Some(range)) => assert!(
+                m.start() == range.0 && m.end() == range.1,
+                "m: {:?}, range: {:?}",
+                m,
+                range
+            ),
+            (None, None) => (),
+            (m, range) => panic!("m: {:?}, range: {:?}", m, range),
+        }
+    }
+
+    #[test]
+    fn find_pinyin_match_() {
+        let notation = PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter;
+        assert_match(find_pinyin_match("xing", "", notation), None);
+        assert_match(find_pinyin_match("xing", "xing", notation), Some((0, 4)));
+        assert_match(find_pinyin_match("xing", "XiNG", notation), Some((0, 4)));
+        assert_match(find_pinyin_match("xing", "行", notation), Some((0, 3)));
+        assert_match(find_pinyin_match("XING", "行", notation), None);
+
+        assert_match(find_pinyin_match("", "", notation), Some((0, 0)));
+        assert_match(find_pinyin_match("", "abc", notation), Some((0, 0)));
     }
 }

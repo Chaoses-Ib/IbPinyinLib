@@ -235,6 +235,7 @@ struct PatternChar<'a> {
     s_lowercase: &'a str,
 }
 
+#[derive(Clone, Debug)]
 pub struct Match {
     start: usize,
     end: usize,
