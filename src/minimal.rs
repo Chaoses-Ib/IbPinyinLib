@@ -12,6 +12,47 @@ pub fn pinyin_data() -> &'static PinyinData {
     PINYIN_DATA.get_or_init(|| PinyinData::new(PinyinNotation::empty()))
 }
 
+// Type maps have a cost
+// fn with_cached_matcher<'a, HaystackStr, R>(
+//     pattern: &'a HaystackStr,
+//     pinyin_notations: PinyinNotation,
+//     f: impl FnOnce(&PinyinMatcher<'static, HaystackStr>) -> R,
+// ) -> R
+// where
+//     HaystackStr: EncodedStr + ?Sized + Clone + 'static,
+//     <HaystackStr as ToOwned>::Owned: PartialEq<&'a HaystackStr>,
+//     R: Default,
+// {
+//     struct MatcherCache<HaystackStr>
+//     where
+//         HaystackStr: EncodedStr + ?Sized + Clone,
+//     {
+//         pattern: <HaystackStr as ToOwned>::Owned,
+//         pinyin_notations: PinyinNotation,
+//         matcher: PinyinMatcher<'static, HaystackStr>,
+//     }
+
+//     let init = || MatcherCache {
+//         pattern: pattern.to_owned(),
+//         pinyin_notations,
+//         matcher: PinyinMatcher::builder(pattern)
+//             .pinyin_data(pinyin_data())
+//             .pinyin_notations(pinyin_notations)
+//             .build(),
+//     };
+//     // TODO: with() should return R
+//     let mut r = Default::default();
+//     generic_singleton::get_or_init_thread_local!(|| Cell::new(init()), |cell| {
+//         let mut matcher = unsafe { &*cell.as_ptr() };
+//         if matcher.pattern != pattern || matcher.pinyin_notations != pinyin_notations {
+//             cell.set(init());
+//             matcher = unsafe { &*cell.as_ptr() };
+//         }
+//         r = f(&matcher.matcher);
+//     });
+//     r
+// }
+
 pub fn is_pinyin_match(pattern: &str, haystack: &str, pinyin_notations: PinyinNotation) -> bool {
     struct MatcherCache {
         pattern: String,
