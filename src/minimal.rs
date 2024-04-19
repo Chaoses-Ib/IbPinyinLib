@@ -1,9 +1,11 @@
 //! Minimal APIs
+//!
+//! TODO: Thread-local cache
 
-use std::sync::{OnceLock, RwLock};
+use std::sync::{OnceLock, RwLock, RwLockReadGuard};
 
 use crate::{
-    matcher::PinyinMatcher,
+    matcher::{encoding::EncodedStr, PinyinMatcher},
     pinyin::{PinyinData, PinyinNotation},
 };
 
@@ -53,14 +55,24 @@ pub fn pinyin_data() -> &'static PinyinData {
 //     r
 // }
 
-pub fn is_pinyin_match(pattern: &str, haystack: &str, pinyin_notations: PinyinNotation) -> bool {
-    struct MatcherCache {
-        pattern: String,
-        pinyin_notations: PinyinNotation,
-        matcher: PinyinMatcher<'static>,
-    }
+struct MatcherCache<HaystackStr>
+where
+    HaystackStr: EncodedStr + ?Sized + ToOwned,
+{
+    pattern: <HaystackStr as ToOwned>::Owned,
+    pinyin_notations: PinyinNotation,
+    matcher: PinyinMatcher<'static, HaystackStr>,
+}
 
-    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache>> = OnceLock::new();
+fn get_or_init_matcher_cache<'a, HaystackStr>(
+    matcher_cache: &'static OnceLock<RwLock<MatcherCache<HaystackStr>>>,
+    pattern: &'a HaystackStr,
+    pinyin_notations: PinyinNotation,
+) -> RwLockReadGuard<'static, MatcherCache<HaystackStr>>
+where
+    HaystackStr: EncodedStr + ?Sized + ToOwned + 'static,
+    <HaystackStr as ToOwned>::Owned: PartialEq<&'a HaystackStr>,
+{
     let init = || MatcherCache {
         pattern: pattern.to_owned(),
         pinyin_notations,
@@ -69,19 +81,24 @@ pub fn is_pinyin_match(pattern: &str, haystack: &str, pinyin_notations: PinyinNo
             .pinyin_notations(pinyin_notations)
             .build(),
     };
-    let lock = MATCHER_CACHE.get_or_init(|| RwLock::new(init()));
-    let cache = {
-        let guard = lock.read().unwrap();
-        if guard.pattern == pattern && guard.pinyin_notations == pinyin_notations {
-            guard
-        } else {
-            drop(guard);
-            *lock.write().unwrap() = init();
-            lock.read().unwrap()
-        }
-    };
 
-    cache.matcher.is_match(haystack)
+    let lock = matcher_cache.get_or_init(|| RwLock::new(init()));
+
+    let guard = lock.read().unwrap();
+    if guard.pattern == pattern && guard.pinyin_notations == pinyin_notations {
+        guard
+    } else {
+        drop(guard);
+        *lock.write().unwrap() = init();
+        lock.read().unwrap()
+    }
+}
+
+pub fn is_pinyin_match(pattern: &str, haystack: &str, pinyin_notations: PinyinNotation) -> bool {
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .is_match(haystack)
 }
 
 #[cfg(feature = "encoding")]
@@ -90,34 +107,10 @@ pub fn is_pinyin_match_u16(
     haystack: &widestring::U16Str,
     pinyin_notations: PinyinNotation,
 ) -> bool {
-    struct MatcherCache {
-        pattern: widestring::U16String,
-        pinyin_notations: PinyinNotation,
-        matcher: PinyinMatcher<'static, widestring::U16Str>,
-    }
-
-    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache>> = OnceLock::new();
-    let init = || MatcherCache {
-        pattern: pattern.to_owned(),
-        pinyin_notations,
-        matcher: PinyinMatcher::builder(pattern)
-            .pinyin_data(pinyin_data())
-            .pinyin_notations(pinyin_notations)
-            .build(),
-    };
-    let lock = MATCHER_CACHE.get_or_init(|| RwLock::new(init()));
-    let cache = {
-        let guard = lock.read().unwrap();
-        if guard.pattern == pattern && guard.pinyin_notations == pinyin_notations {
-            guard
-        } else {
-            drop(guard);
-            *lock.write().unwrap() = init();
-            lock.read().unwrap()
-        }
-    };
-
-    cache.matcher.is_match(haystack)
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<widestring::U16Str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .is_match(haystack)
 }
 
 #[cfg(feature = "encoding")]
@@ -126,34 +119,10 @@ pub fn is_pinyin_match_u32(
     haystack: &widestring::U32Str,
     pinyin_notations: PinyinNotation,
 ) -> bool {
-    struct MatcherCache {
-        pattern: widestring::U32String,
-        pinyin_notations: PinyinNotation,
-        matcher: PinyinMatcher<'static, widestring::U32Str>,
-    }
-
-    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache>> = OnceLock::new();
-    let init = || MatcherCache {
-        pattern: pattern.to_owned(),
-        pinyin_notations,
-        matcher: PinyinMatcher::builder(pattern)
-            .pinyin_data(pinyin_data())
-            .pinyin_notations(pinyin_notations)
-            .build(),
-    };
-    let lock = MATCHER_CACHE.get_or_init(|| RwLock::new(init()));
-    let cache = {
-        let guard = lock.read().unwrap();
-        if guard.pattern == pattern && guard.pinyin_notations == pinyin_notations {
-            guard
-        } else {
-            drop(guard);
-            *lock.write().unwrap() = init();
-            lock.read().unwrap()
-        }
-    };
-
-    cache.matcher.is_match(haystack)
+    static MATCHER_CACHE: OnceLock<RwLock<MatcherCache<widestring::U32Str>>> = OnceLock::new();
+    get_or_init_matcher_cache(&MATCHER_CACHE, pattern, pinyin_notations)
+        .matcher
+        .is_match(haystack)
 }
 
 #[cfg(test)]
