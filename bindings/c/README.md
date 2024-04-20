@@ -16,7 +16,7 @@ bool is_match = ib_pinyin_is_match_u32c(U"pysousuoeve", U"拼音搜索Everything
 
 Find match:
 ```c
-uint64_t match = ib_pinyin_find_match_u8(u8"pysousuoeve", u8"拼音搜索Everything", PINYIN_NOTATION_ASCII_FIRST_LETTER | PINYIN_NOTATION_ASCII);
+uint64_t match = ib_pinyin_find_match_u8c(u8"pysousuoeve", u8"拼音搜索Everything", PINYIN_NOTATION_ASCII_FIRST_LETTER | PINYIN_NOTATION_ASCII);
 uint32_t start = match & 0xFFFFFFFF;
 uint32_t end = match >> 32;
 bool is_match = start != 0xFFFFFFFF;
