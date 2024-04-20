@@ -2,7 +2,7 @@
 members = ["bindings/c"]
 
 [workspace.package]
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Chaoses-Ib"]
 description = "一个高性能拼音匹配库"
 homepage = "https://github.com/Chaoses-Ib/IbPinyinLib"
