@@ -28,7 +28,7 @@ IbPinyin_FindMatch(pattern, haystack, &start, &end, notations := IbPinyin_AsciiF
 {
     u64 := DllCall("IbPinyin64\ib_pinyin_find_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl UInt64")
     start := Mod((u64 & 0xFFFFFFFF) + 1, 0x100000000)
-    end := Mod((u64 >> 32) + 1, 0x100000000)
+    end := Mod((u64 >>> 32) + 1, 0x100000000)
     return start != 0
 }
 
