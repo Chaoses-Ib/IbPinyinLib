@@ -21,7 +21,7 @@ IbPinyin_DiletterZrm := 0x200
 IbPinyin_IsMatch(pattern, haystack, notations := IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
 {
     ; If DllCall's first parameter is a literal string such as "MulDiv" and the DLL containing the function is ordinarily loaded before the script starts, or has been successfully loaded with #DllLoad, the string is automatically resolved to a function address.
-    return DllCall("IbPinyin64\ib_pinyin_is_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl Int") != 0
+    return DllCall("IbPinyin64\ib_pinyin_is_match_u16", "Ptr", StrPtr(pattern), "UPtr", StrLen(pattern), "Ptr", StrPtr(haystack), "UPtr", StrLen(haystack), "UInt", notations, "Cdecl Int") & 0xFF != 0
 }
 
 IbPinyin_FindMatch(pattern, haystack, &start, &end, notations := IbPinyin_AsciiFirstLetter | IbPinyin_Ascii)
