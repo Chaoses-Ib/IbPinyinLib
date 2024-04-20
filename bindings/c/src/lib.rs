@@ -172,6 +172,16 @@ mod tests {
             haystack.len(),
             (PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter).bits()
         ));
+
+        let pattern = u16str!("wszpx");
+        let haystack = u16str!("我是只螃蟹");
+        assert!(ib_pinyin::is_match_u16(
+            unsafe { &*pattern.as_ptr() },
+            pattern.len(),
+            unsafe { &*haystack.as_ptr() },
+            haystack.len(),
+            (PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter).bits()
+        ));
     }
 
     #[test]
