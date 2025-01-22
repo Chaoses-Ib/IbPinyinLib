@@ -103,6 +103,9 @@ Perl <br /> ([Rust](https://github.com/chowdhurya/rust-unidecode/), [Java](https
 - [Directory Opus](https://github.com/Chaoses-Ib/DirectoryOpus)（仅简拼）
 - Total Commander：[QuickSearch eXtended](https://www.ghisler.ch/board/viewtopic.php?t=22592)（仅简拼）
 
+终端：
+- [bash-pinyin-completion-rs: Simple completion script for pinyin, written in rust.](https://github.com/wxiwnd/bash-pinyin-completion-rs)（基于 IbPinyinLib）
+
 文本编辑：
 - Visual Studio
   - [ChinesePinyinIntelliSenseExtender: VisualStudio中文代码拼音补全拓展](https://github.com/stratosblue/ChinesePinyinIntelliSenseExtender)
