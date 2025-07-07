@@ -1,5 +1,8 @@
 [workspace]
-members = ["bindings/c"]
+members = [
+    "bindings/c",
+    # "bindings/diplomat"
+]
 
 [workspace.package]
 version = "0.2.7"

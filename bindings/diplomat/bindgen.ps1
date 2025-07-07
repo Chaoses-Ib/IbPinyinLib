@@ -1,0 +1,1 @@
+﻿diplomat-tool c bindings/diplomat/include/ib_pinyin -e bindings/diplomat/src/lib.rs
