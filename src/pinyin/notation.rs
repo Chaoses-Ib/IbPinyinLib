@@ -85,21 +85,21 @@ impl PinyinNotation {
         )
     }
 
-    /// `0` if no notation is set.
-    pub fn max_len(&self) -> usize {
+    /// `None` if no notation is set.
+    pub fn max_len(&self) -> Option<usize> {
         if self.intersects(PinyinNotation::Unicode | PinyinNotation::AsciiTone) {
-            return 7;
+            return Some(7);
         }
         if self.contains(PinyinNotation::Ascii) {
-            return 6;
+            return Some(6);
         }
         if self.contains_diletter() {
-            return 2;
+            return Some(2);
         }
         if self.contains(PinyinNotation::AsciiFirstLetter) {
-            return 1;
+            return Some(1);
         }
-        0
+        None
     }
 }
 
