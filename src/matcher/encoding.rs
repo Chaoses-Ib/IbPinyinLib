@@ -1,3 +1,6 @@
+/// ## Performance
+/// Although multiple encodings are supported, UTF-8 (`str`) is most optimized.
+///
 /// TODO: Extended ASCII code pages
 /// TODO: Index/SliceIndex
 pub trait EncodedStr {

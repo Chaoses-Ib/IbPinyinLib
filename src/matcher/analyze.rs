@@ -1,10 +1,12 @@
+use std::cmp::min;
+
 use bon::Builder;
 
 use crate::pinyin::{PinyinData, PinyinNotation};
 
 #[derive(Builder)]
 pub struct PatternAnalyzeConfig {
-    /// For [`PatternAnalyzer::used_notations`]
+    /// For better [`PatternAnalyzer::used_notations`] and [`PatternAnalyzer::min_haystack_len`].
     ///
     /// ~65us (+90%, 220~1100 matches)
     traversal: bool,
@@ -28,6 +30,9 @@ pub(crate) struct PatternAnalyzer<'a> {
     notations: PinyinNotation,
 
     used_notations: PinyinNotation,
+    #[cfg(test)]
+    min_haystack_chars: usize,
+    min_haystack_len: usize,
 }
 
 impl<'a> PatternAnalyzer<'a> {
@@ -39,7 +44,15 @@ impl<'a> PatternAnalyzer<'a> {
             pinyin_data,
             notations,
             used_notations: PinyinNotation::empty(),
+            #[cfg(test)]
+            min_haystack_chars: 0,
+            min_haystack_len: 0,
         }
+    }
+
+    #[cfg(test)]
+    fn analyze_default(&mut self) {
+        self.analyze(PatternAnalyzeConfig::default());
     }
 
     #[cfg(test)]
@@ -49,20 +62,58 @@ impl<'a> PatternAnalyzer<'a> {
 
     pub fn analyze(&mut self, config: PatternAnalyzeConfig) {
         if config.traversal {
-            self.sub_analyze(self.pattern, 0);
+            self.used_notations = PinyinNotation::empty();
+
+            #[cfg(test)]
+            {
+                self.min_haystack_chars = usize::MAX;
+            }
+            self.min_haystack_len = usize::MAX;
+
+            self.sub_analyze(self.pattern, 0, 0);
         } else {
             self.used_notations = self.notations;
+
+            // Traversal can give a better lower bound
+            let min_haystack_chars = {
+                match self.used_notations.max_len() {
+                    Some(max_len) => {
+                        // - Ascii: "shuang" / 6 = 1, "a" / 6 = 1
+                        self.pattern.len().div_ceil(max_len)
+                    }
+                    None => {
+                        // If case_insensitive, pattern length in bytes may be shorter than the matched haystack (or not?), so we use char count only
+                        self.pattern.len()
+                    }
+                }
+            };
+            #[cfg(test)]
+            {
+                self.min_haystack_chars = min_haystack_chars;
+            }
+            self.min_haystack_len = min_haystack_chars;
         }
     }
 
-    fn sub_analyze(&mut self, pattern: &str, depth: usize) {
+    fn sub_analyze(&mut self, pattern: &str, depth: usize, min_len: usize) {
         if pattern.is_empty() {
+            #[cfg(test)]
+            if depth < self.min_haystack_chars {
+                self.min_haystack_chars = depth;
+            }
+            if min_len < self.min_haystack_len {
+                #[cfg(test)]
+                println!("{}min_haystack_len: {min_len}", " ".repeat(depth));
+                self.min_haystack_len = min_len;
+            }
             return;
         }
+        let c = pattern.chars().next().unwrap();
 
-        let mut matched_single_char = false;
+        let mut any_matched_single_char = false;
         for notation in self.notations.iter() {
             for matched in self.pinyin_data.match_pinyin(notation, pattern) {
+                let mut matched_single_char = false;
                 if matched.len() == 1 {
                     matched_single_char = true;
 
@@ -77,26 +128,51 @@ impl<'a> PatternAnalyzer<'a> {
                 {
                     matched_single_char = true;
                 }
+                any_matched_single_char |= matched_single_char;
+
                 self.used_notations |= notation;
 
+                // `MAX_RANGE` starts from 0x3007, at least 3 bytes
+                let min_len = min_len
+                    + if matched_single_char {
+                        min(3, c.len_utf8())
+                    } else {
+                        3
+                    };
+
                 #[cfg(test)]
-                println!("{}{matched} {:X}", " ".repeat(depth), notation.bits());
-                self.sub_analyze(&pattern[matched.len()..], depth + 1);
+                println!(
+                    "{}{matched} {:X} min_len={min_len} single={matched_single_char}",
+                    " ".repeat(depth),
+                    notation.bits()
+                );
+
+                self.sub_analyze(&pattern[matched.len()..], depth + 1, min_len);
             }
         }
 
         // Prune the tree
-        if !matched_single_char {
-            let matched = pattern.chars().next().unwrap();
+        if !any_matched_single_char {
+            let matched = c;
             #[cfg(test)]
             println!("{}{matched}", " ".repeat(depth));
-            self.sub_analyze(&pattern[matched.len_utf8()..], depth + 1);
+            let len = matched.len_utf8();
+            self.sub_analyze(&pattern[len..], depth + 1, min_len + len);
         }
     }
 
     /// - If [`PinyinNotation::Ascii`] and [`PinyinNotation::AsciiFirstLetter`] are both enabled, [`PinyinNotation::Ascii`] is only considered used if the pattern uses any non-single-letter pinyin from [`PinyinNotation::Ascii`].
     pub fn used_notations(&self) -> PinyinNotation {
         self.used_notations
+    }
+
+    #[cfg(test)]
+    pub fn min_haystack_chars(&self) -> usize {
+        self.min_haystack_chars
+    }
+
+    pub fn min_haystack_len(&self) -> usize {
+        self.min_haystack_len
     }
 
     #[cfg(test)]
@@ -154,5 +230,46 @@ mod tests {
         );
         analyzer.analyze_std();
         assert_eq!(analyzer.used_notations(), PinyinNotation::AsciiFirstLetter);
+    }
+
+    #[test]
+    fn min_haystack_len() {
+        let pinyin_data = PinyinData::new(PinyinNotation::all());
+
+        let mut analyzer = PatternAnalyzer::new(
+            "pysousuoeve",
+            &pinyin_data,
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        );
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 7);
+        assert_eq!(analyzer.min_haystack_len(), 11);
+
+        let mut analyzer = PatternAnalyzer::new(
+            "pyssEve",
+            &pinyin_data,
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        );
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 7);
+        assert_eq!(analyzer.min_haystack_len(), 7);
+
+        let mut analyzer = PatternAnalyzer::new(
+            "pysseve",
+            &pinyin_data,
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        );
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 6);
+        assert_eq!(analyzer.min_haystack_len(), 7);
     }
 }

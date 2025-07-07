@@ -35,6 +35,7 @@ impl<'a, HaystackStr> PinyinMatcherBuilder<'a, HaystackStr>
 where
     HaystackStr: EncodedStr + ?Sized,
 {
+    /// Use [`PinyinMatcher::builder()`] instead.
     fn new(pattern: &HaystackStr) -> Self {
         Self {
             pattern: pattern.char_index_strs().map(|(_, c, _)| c).collect(),
@@ -191,20 +192,6 @@ where
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
-        // TODO: A better lower bound
-        let min_haystack_chars = {
-            match pinyin_notations.max_len() {
-                Some(max_len) => {
-                    // - Ascii: "shuang" / 6 = 1, "a" / 6 = 1
-                    pattern.len().div_ceil(max_len)
-                }
-                None => {
-                    // If case_insensitive, pattern length in bytes may be shorter than the matched haystack (or not?), so we use char count only
-                    pattern.len()
-                }
-            }
-        };
-
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
         PinyinMatcher {
             // ASCII-only haystack optimization
@@ -226,7 +213,13 @@ where
             _pattern_string: pattern_string,
             _pattern_string_lowercase: pattern_string_lowercase,
 
-            min_haystack_chars,
+            min_haystack_len: match HaystackStr::ELEMENT_LEN_BYTE {
+                1 => analyzer.min_haystack_len(),
+                len => {
+                    // TODO
+                    len
+                }
+            },
 
             case_insensitive: self.case_insensitive,
             is_pattern_partial: self.is_pattern_partial,
@@ -264,7 +257,7 @@ where
     _pattern_string: String,
     _pattern_string_lowercase: String,
 
-    min_haystack_chars: usize,
+    min_haystack_len: usize,
 
     case_insensitive: bool,
     is_pattern_partial: bool,
@@ -591,7 +584,7 @@ where
     /// Already tested in match methods.
     pub fn is_haystack_too_short(&self, haystack: &HaystackStr) -> bool {
         // Self::is_haystack_too_short_with_pattern(&self.pattern, haystack)
-        haystack.as_bytes().len() < self.min_haystack_chars
+        haystack.as_bytes().len() < self.min_haystack_len
     }
 }
 
@@ -611,7 +604,6 @@ mod test {
         )
     }
 
-    #[ignore]
     #[test]
     fn is_haystack_too_short() {
         // assert!(PinyinMatcher::is_haystack_too_short_with_pattern(&[], "") == false);
@@ -619,6 +611,7 @@ mod test {
 
         let matcher = PinyinMatcher::builder("pysseve")
             .pinyin_notations(PinyinNotation::Ascii)
+            .analyze()
             .build();
         assert!(matcher.is_haystack_too_short(""));
         assert!(matcher.is_haystack_too_short("a"));

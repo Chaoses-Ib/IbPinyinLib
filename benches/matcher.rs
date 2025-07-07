@@ -5,6 +5,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let matcher = PinyinMatcher::builder("pysseve")
         .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
         .build();
+    let analyzed = PinyinMatcher::builder("pysseve")
+        .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+        .analyze()
+        .build();
 
     assert!(matcher.find("pys").is_none());
     c.bench_function("find_ascii_too_short", |b| {
@@ -12,6 +16,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     assert!(matcher.find("拼").is_none());
+    c.bench_function("find_too_short_analyse", |b| {
+        b.iter(|| analyzed.find(black_box("拼")))
+    });
     c.bench_function("find_too_short", |b| {
         b.iter(|| matcher.find(black_box("拼")))
     });
@@ -58,6 +65,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     assert!(matcher.find("あなたは誰拼音搜索Evvrything").is_none());
+    c.bench_function("find_5_miss_analyze", |b| {
+        b.iter(|| analyzed.find(black_box("あなたは誰拼音搜索Evvrything")))
+    });
     c.bench_function("find_5_miss", |b| {
         b.iter(|| matcher.find(black_box("あなたは誰拼音搜索Evvrything")))
     });
