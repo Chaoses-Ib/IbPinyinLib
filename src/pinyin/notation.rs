@@ -73,6 +73,36 @@ bitflags::bitflags! {
     }
 }
 
+impl PinyinNotation {
+    pub fn contains_diletter(&self) -> bool {
+        self.intersects(
+            PinyinNotation::DiletterAbc
+                | PinyinNotation::DiletterJiajia
+                | PinyinNotation::DiletterMicrosoft
+                | PinyinNotation::DiletterThunisoft
+                | PinyinNotation::DiletterXiaohe
+                | PinyinNotation::DiletterZrm,
+        )
+    }
+
+    /// `0` if no notation is set.
+    pub fn max_len(&self) -> usize {
+        if self.intersects(PinyinNotation::Unicode | PinyinNotation::AsciiTone) {
+            return 7;
+        }
+        if self.contains(PinyinNotation::Ascii) {
+            return 6;
+        }
+        if self.contains_diletter() {
+            return 2;
+        }
+        if self.contains(PinyinNotation::AsciiFirstLetter) {
+            return 1;
+        }
+        0
+    }
+}
+
 #[cfg(feature = "inmut-data")]
 pub(super) use atomic::*;
 #[cfg(feature = "inmut-data")]
@@ -496,6 +526,24 @@ mod tests {
     fn lowercase() {
         for unicode in data::PINYINS {
             assert_eq!(unicode, unicode.to_lowercase());
+        }
+    }
+
+    #[test]
+    fn max_len() {
+        for unicode in data::PINYINS {
+            let ascii = unicode_to_ascii(unicode);
+            println!("{}: {}", unicode, ascii);
+
+            assert!(unicode.len() <= 7, "{}", unicode.len());
+            assert!(ascii.len() <= 6);
+
+            assert_eq!(ascii_to_diletter_abc(&ascii).len(), 2);
+            assert_eq!(ascii_to_diletter_jiajia(&ascii).len(), 2);
+            assert_eq!(ascii_to_diletter_microsoft(&ascii).len(), 2);
+            assert_eq!(ascii_to_diletter_thunisoft(&ascii).len(), 2);
+            assert_eq!(ascii_to_diletter_xiaohe(&ascii).len(), 2);
+            assert_eq!(ascii_to_diletter_zrm(&ascii).len(), 2);
         }
     }
 
