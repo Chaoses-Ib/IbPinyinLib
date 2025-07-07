@@ -206,7 +206,7 @@ impl PinyinData {
             .take_while(|&&i| i != u16::MAX)
     }
 
-    fn pinyin(&self, index: u16) -> Pinyin {
+    fn pinyin(&self, index: u16) -> Pinyin<'_> {
         Pinyin { data: self, index }
     }
 

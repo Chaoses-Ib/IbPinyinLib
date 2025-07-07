@@ -10,6 +10,8 @@ use encoding::EncodedStr;
 
 mod regex_utils;
 
+/// ## Design
+/// API follows [`regex::RegexBuilder`](https://docs.rs/regex/latest/regex/struct.RegexBuilder.html).
 pub struct PinyinMatcherBuilder<'a, HaystackStr = str>
 where
     HaystackStr: EncodedStr + ?Sized,
@@ -220,6 +222,9 @@ where
     }
 }
 
+/// ## Design
+/// API follows [`regex::Regex`](https://docs.rs/regex/latest/regex/struct.Regex.html).
+///
 /// TODO: No-pinyin pattern optimization
 /// TODO: Anchors, `*_at`
 /// TODO: Unicode normalization
