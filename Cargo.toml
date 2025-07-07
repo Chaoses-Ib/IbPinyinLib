@@ -27,6 +27,11 @@ keywords.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+inmut-data = []
+minimal = ["inmut-data"]
+encoding = ["dep:widestring"]
+
 [dependencies]
 arraystring = "0.3.0"
 bitflags = "2.4.1"
@@ -37,7 +42,9 @@ regex = { version = "1.10.2", default-features = false, features = [
 ] }
 widestring = { version = "1.0.2", optional = true }
 
-[features]
-inmut-data = []
-minimal = ["inmut-data"]
-encoding = ["dep:widestring"]
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "matcher"
+harness = false
