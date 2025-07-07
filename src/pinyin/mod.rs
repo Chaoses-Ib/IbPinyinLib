@@ -210,7 +210,10 @@ impl PinyinData {
         Pinyin { data: self, index }
     }
 
-    /// Prefer `get_pinyins_and_for_each` if applicable.
+    /// Prefer [`PinyinData::get_pinyins_and_for_each`] and [`PinyinData::get_pinyins_and_try_for_each`] if applicable.
+    ///
+    /// ## Performance
+    /// Do not use this method in performance-critical code. The `Box` wouldn't be optimized away even with `#[inline(always)]`.
     pub fn get_pinyins<'a>(&'a self, c: char) -> Box<dyn Iterator<Item = Pinyin<'a>> + 'a> {
         if let Some(i) = Self::get_pinyin_index(c) {
             if i < data::PINYINS.len() as u16 {
@@ -232,6 +235,28 @@ impl PinyinData {
                 let i = i - data::PINYINS.len() as u16;
                 Self::pinyin_combination(i).for_each(|&i| f(self.pinyin(i)));
             }
+        }
+    }
+
+    pub fn get_pinyins_and_try_for_each<T>(
+        &self,
+        c: char,
+        mut f: impl FnMut(Pinyin) -> Option<T>,
+    ) -> Option<T> {
+        if let Some(i) = Self::get_pinyin_index(c) {
+            if i < data::PINYINS.len() as u16 {
+                f(self.pinyin(i))
+            } else {
+                let i = i - data::PINYINS.len() as u16;
+                for &i in Self::pinyin_combination(i) {
+                    if let Some(v) = f(self.pinyin(i)) {
+                        return Some(v);
+                    }
+                }
+                None
+            }
+        } else {
+            None
         }
     }
 }

@@ -415,29 +415,51 @@ where
             };
         }
 
-        // TODO: get_pinyins_and_for_each?
-        for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
-            for &notation in self.pinyin_notations_prefix_group.iter() {
-                let pinyin = pinyin.notation(notation).unwrap();
-                match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
-                    (true, Some(submatch)) => return Some(submatch),
-                    (true, None) => (),
-                    (false, None) => break,
-                    (false, Some(_)) => unreachable!(),
-                }
-            }
-            for &notation in self.pinyin_notations.iter() {
-                let pinyin = pinyin.notation(notation).unwrap();
-                match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
-                    (true, Some(submatch)) => return Some(submatch),
-                    (true, None) => (),
-                    (false, None) => (),
-                    (false, Some(_)) => unreachable!(),
-                }
-            }
-        }
+        // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
+        //     for &notation in self.pinyin_notations_prefix_group.iter() {
+        //         let pinyin = pinyin.notation(notation).unwrap();
+        //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+        //             (true, Some(submatch)) => return Some(submatch),
+        //             (true, None) => (),
+        //             (false, None) => break,
+        //             (false, Some(_)) => unreachable!(),
+        //         }
+        //     }
+        //     for &notation in self.pinyin_notations.iter() {
+        //         let pinyin = pinyin.notation(notation).unwrap();
+        //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+        //             (true, Some(submatch)) => return Some(submatch),
+        //             (true, None) => (),
+        //             (false, None) => (),
+        //             (false, Some(_)) => unreachable!(),
+        //         }
+        //     }
+        // }
+        // None
 
-        None
+        // Reduce total time by 45~65% compared to using `get_pinyins()`
+        self.pinyin_data
+            .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
+                for &notation in self.pinyin_notations_prefix_group.iter() {
+                    let pinyin = pinyin.notation(notation).unwrap();
+                    match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                        (true, Some(submatch)) => return Some(submatch),
+                        (true, None) => (),
+                        (false, None) => break,
+                        (false, Some(_)) => unreachable!(),
+                    }
+                }
+                for &notation in self.pinyin_notations.iter() {
+                    let pinyin = pinyin.notation(notation).unwrap();
+                    match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                        (true, Some(submatch)) => return Some(submatch),
+                        (true, None) => (),
+                        (false, None) => (),
+                        (false, Some(_)) => unreachable!(),
+                    }
+                }
+                None
+            })
     }
 
     /// ## Arguments
