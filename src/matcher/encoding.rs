@@ -8,6 +8,9 @@ pub trait EncodedStr {
 
     fn char_index_strs(&self) -> impl Iterator<Item = (usize, char, &Self)>;
     fn char_len_next_strs(&self) -> impl Iterator<Item = (char, usize, &Self)>;
+    fn chars_count(&self) -> usize {
+        self.char_index_strs().count()
+    }
 }
 
 impl EncodedStr for str {
@@ -30,6 +33,10 @@ impl EncodedStr for str {
             let len = c.len_utf8();
             (c, len, &self[i + len..])
         })
+    }
+
+    fn chars_count(&self) -> usize {
+        self.chars().count()
     }
 }
 

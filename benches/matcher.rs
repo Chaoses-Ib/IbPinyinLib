@@ -6,6 +6,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
         .build();
 
+    assert!(matcher.find("pys").is_none());
+    c.bench_function("find_ascii_too_short", |b| {
+        b.iter(|| matcher.find(black_box("pys")))
+    });
+
+    assert!(matcher.find("拼").is_none());
+    c.bench_function("find_too_short", |b| {
+        b.iter(|| matcher.find(black_box("拼")))
+    });
+
     assert!(matcher.is_match("pyssEverything"));
     c.bench_function("is_match_ascii", |b| {
         b.iter(|| matcher.is_match(black_box("pyssEverything")))

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData, ops::Range};
+use std::{borrow::Cow, hint::unreachable_unchecked, marker::PhantomData, ops::Range};
 
 use crate::pinyin::{PinyinData, PinyinNotation};
 
@@ -206,6 +206,7 @@ where
 /// TODO: Anchors, `*_at`
 /// TODO: Unicode normalization
 /// TODO: No-hanzi haystack optimization (0.2/0.9%)
+/// TODO: If pattern doesn't contain `.`, only match before `.` in the haystack
 pub struct PinyinMatcher<'a, HaystackStr = str>
 where
     HaystackStr: EncodedStr + ?Sized,
@@ -393,10 +394,19 @@ where
     ) -> Option<SubMatch> {
         debug_assert!(!pattern.is_empty());
 
+        if Self::is_haystack_too_short_with_pattern(pattern, haystack) {
+            return None;
+        }
+
         let (haystack_c, haystack_c_len, haystack_next) = {
             match haystack.char_len_next_strs().next() {
                 Some(v) => v,
-                None => return None,
+                None => {
+                    // return None;
+
+                    // pattern is not empty, so haystack must not be empty too.
+                    unsafe { unreachable_unchecked() }
+                }
             }
         };
         let matched_len = matched_len + haystack_c_len;
@@ -506,6 +516,22 @@ where
 
         (false, None)
     }
+
+    /// Reduce ~10% miss case time at the cost of some hit case time.
+    fn is_haystack_too_short_with_pattern(pattern: &[PatternChar], haystack: &HaystackStr) -> bool {
+        // - A PatternChar must at least match one char in the haystack, i.e. `haystack.chars_count() >= pattern.len()`
+        //  - So `haystack.len() >= haystack.chars_count() >= pattern.len()`
+        // - pattern.s.len() may be shorter, equal, or longer than haystack.len()
+        //   - We have pinyin that is longer than its hanzi, like "shuang".len() > "双".len()
+
+        // haystack.chars_count() < pattern.len()
+        haystack.as_bytes().len() < pattern.len()
+    }
+
+    /// Already tested in match methods.
+    pub fn is_haystack_too_short(&self, haystack: &HaystackStr) -> bool {
+        Self::is_haystack_too_short_with_pattern(&self.pattern, haystack)
+    }
 }
 
 #[cfg(test)]
@@ -522,6 +548,23 @@ mod test {
             PinyinNotation::all().iter().count(),
             PinyinMatcherBuilder::<str>::ORDERED_PINYIN_NOTATIONS.len()
         )
+    }
+
+    #[test]
+    fn is_haystack_too_short() {
+        assert!(PinyinMatcher::is_haystack_too_short_with_pattern(&[], "") == false);
+        assert!(PinyinMatcher::is_haystack_too_short_with_pattern(&[], "a") == false);
+
+        let matcher = PinyinMatcher::builder("pysseve")
+            .pinyin_notations(PinyinNotation::Ascii)
+            .build();
+        assert!(matcher.is_haystack_too_short(""));
+        assert!(matcher.is_haystack_too_short("a"));
+        assert!(matcher.is_haystack_too_short("pyss"));
+        assert!(matcher.is_haystack_too_short("pyssEverything") == false);
+        assert!(matcher.is_haystack_too_short("拼"));
+        assert!(matcher.is_haystack_too_short("拼音"));
+        assert!(matcher.is_haystack_too_short("拼音搜") == false);
     }
 
     #[test]
