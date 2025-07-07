@@ -6,7 +6,7 @@ bitflags::bitflags! {
     ///
     /// ## Others
     /// TODO: doc alias does not work
-    #[derive(Clone, Copy, PartialEq, Eq)]
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct PinyinNotation: u32 {
         /// e.g. "pīn", "yīn"
         const Unicode = 0x8;

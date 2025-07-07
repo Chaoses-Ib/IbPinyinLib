@@ -33,6 +33,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 .build()
         })
     });
+    c.bench_function("build_analyze", |b| {
+        b.iter(|| {
+            PinyinMatcher::builder("pysseve")
+                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .analyze()
+                .build()
+        })
+    });
 
     assert!(matcher.is_match("拼音搜索Everything"));
     c.bench_function("is_match", |b| {

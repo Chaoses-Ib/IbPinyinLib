@@ -35,6 +35,8 @@ encoding = ["dep:widestring"]
 [dependencies]
 arraystring = "0.3.0"
 bitflags = "2.4.1"
+bon = "3"
+itertools = "0.14"
 # TODO: perf-dfa-full
 regex = { version = "1.10.2", default-features = false, features = [
     "std",

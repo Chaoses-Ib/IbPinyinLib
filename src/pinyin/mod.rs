@@ -21,6 +21,7 @@ impl PinyinRangeTable {
     }
 }
 
+use itertools::Itertools;
 pub use notation::PinyinNotation;
 
 type PinyinString = arraystring::ArrayString<arraystring::typenum::U7>;
@@ -210,6 +211,10 @@ impl PinyinData {
         Pinyin { data: self, index }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = Pinyin<'_>> {
+        (0..data::PINYINS.len() as u16).map(|i| self.pinyin(i))
+    }
+
     /// Prefer [`PinyinData::get_pinyins_and_for_each`] and [`PinyinData::get_pinyins_and_try_for_each`] if applicable.
     ///
     /// ## Performance
@@ -259,6 +264,21 @@ impl PinyinData {
             None
         }
     }
+
+    /// Match pinyin of the given notation in haystack.
+    pub fn match_pinyin<'a: 'h, 'h>(
+        &'a self,
+        notation: PinyinNotation,
+        haystack: &'h str,
+    ) -> impl Iterator<Item = &'a str> + 'h {
+        debug_assert_eq!(notation.bits().count_ones(), 1);
+        debug_assert!(self.inited_notations().contains(notation));
+
+        self.iter()
+            .map(move |pinyin| pinyin.notation(notation).unwrap())
+            .filter(move |py| haystack.starts_with(py))
+            .dedup()
+    }
 }
 
 pub struct Pinyin<'a> {
@@ -267,7 +287,7 @@ pub struct Pinyin<'a> {
 }
 
 impl<'a> Pinyin<'a> {
-    pub fn notation(&self, notation: PinyinNotation) -> Option<&str> {
+    pub fn notation(&self, notation: PinyinNotation) -> Option<&'a str> {
         debug_assert_eq!(notation.bits().count_ones(), 1);
 
         let i = self.index as usize;

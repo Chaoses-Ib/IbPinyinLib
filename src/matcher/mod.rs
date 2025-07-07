@@ -8,8 +8,11 @@ use unicode::{CharToMonoLowercase, StrToMonoLowercase};
 pub mod encoding;
 use encoding::EncodedStr;
 
+pub mod analyze;
 mod regex_utils;
 
+/// See [`PinyinMatcher`].
+///
 /// ## Design
 /// API follows [`regex::RegexBuilder`](https://docs.rs/regex/latest/regex/struct.RegexBuilder.html).
 pub struct PinyinMatcherBuilder<'a, HaystackStr = str>
@@ -18,6 +21,7 @@ where
 {
     pattern: String,
     pattern_bytes: Vec<u8>,
+    analyze: Option<analyze::PatternAnalyzeConfig>,
     case_insensitive: bool,
     is_pattern_partial: bool,
     pinyin_data: Option<&'a PinyinData>,
@@ -35,6 +39,7 @@ where
         Self {
             pattern: pattern.char_index_strs().map(|(_, c, _)| c).collect(),
             pattern_bytes: pattern.as_bytes().to_owned(),
+            analyze: None,
             case_insensitive: true,
             is_pattern_partial: false,
             pinyin_data: None,
@@ -93,7 +98,31 @@ where
         PinyinNotation::DiletterZrm,
     ];
 
+    pub fn analyze_config(mut self, analyze: analyze::PatternAnalyzeConfig) -> Self {
+        self.analyze = Some(analyze);
+        self
+    }
+
+    /// For more advanced control over the analysis, use [`PinyinMatcherBuilder::analyze_config`].
+    pub fn analyze(self) -> Self {
+        self.analyze_config(analyze::PatternAnalyzeConfig::standard())
+    }
+
     pub fn build(self) -> PinyinMatcher<'a, HaystackStr> {
+        let pinyin_data = match self.pinyin_data {
+            Some(pinyin_data) => {
+                #[cfg(not(feature = "inmut-data"))]
+                assert!(pinyin_data
+                    .inited_notations()
+                    .contains(self.pinyin_notations));
+                #[cfg(feature = "inmut-data")]
+                pinyin_data.init_notations(self.pinyin_notations);
+
+                Cow::Borrowed(pinyin_data)
+            }
+            None => Cow::Owned(PinyinData::new(self.pinyin_notations)),
+        };
+
         let pattern_string = self.pattern;
         let pattern_s: &str = pattern_string.as_str();
         let pattern_s: &'static str = unsafe { std::mem::transmute(pattern_s) };
@@ -102,8 +131,13 @@ where
         let pattern_s_lowercase: &str = pattern_string_lowercase.as_str();
         let pattern_s_lowercase: &'static str = unsafe { std::mem::transmute(pattern_s_lowercase) };
 
-        let (notations_prefix_group, unprefixable_pinyin_notations) = match self
-            .pinyin_notations
+        let mut analyzer =
+            analyze::PatternAnalyzer::new(pattern_s_lowercase, &pinyin_data, self.pinyin_notations);
+        analyzer.analyze(self.analyze.unwrap_or_default());
+        let pinyin_notations = analyzer.used_notations();
+        // TODO: Optimize if only AsciiFirstLetter is used
+
+        let (notations_prefix_group, unprefixable_pinyin_notations) = match pinyin_notations
             .intersection(
                 PinyinNotation::AsciiFirstLetter
                     | PinyinNotation::Ascii
@@ -114,28 +148,25 @@ where
         {
             count if count > 1 => {
                 let mut notations = Vec::with_capacity(count as usize);
-                if self
-                    .pinyin_notations
-                    .contains(PinyinNotation::AsciiFirstLetter)
-                {
+                if pinyin_notations.contains(PinyinNotation::AsciiFirstLetter) {
                     notations.push(PinyinNotation::AsciiFirstLetter);
                 }
-                if self.pinyin_notations.contains(PinyinNotation::Ascii) {
+                if pinyin_notations.contains(PinyinNotation::Ascii) {
                     notations.push(PinyinNotation::Ascii);
                 }
-                if self.pinyin_notations.contains(PinyinNotation::AsciiTone) {
+                if pinyin_notations.contains(PinyinNotation::AsciiTone) {
                     notations.push(PinyinNotation::AsciiTone);
                 }
                 (
                     notations,
-                    self.pinyin_notations.difference(
+                    pinyin_notations.difference(
                         PinyinNotation::AsciiFirstLetter
                             | PinyinNotation::Ascii
                             | PinyinNotation::AsciiTone,
                     ),
                 )
             }
-            _ => (Vec::new(), self.pinyin_notations),
+            _ => (Vec::new(), pinyin_notations),
         };
         let mut notations =
             Vec::with_capacity(unprefixable_pinyin_notations.bits().count_ones() as usize);
@@ -162,7 +193,7 @@ where
 
         // TODO: A better lower bound
         let min_haystack_chars = {
-            match self.pinyin_notations.max_len() {
+            match pinyin_notations.max_len() {
                 Some(max_len) => {
                     // - Ascii: "shuang" / 6 = 1, "a" / 6 = 1
                     pattern.len().div_ceil(max_len)
@@ -200,19 +231,7 @@ where
             case_insensitive: self.case_insensitive,
             is_pattern_partial: self.is_pattern_partial,
 
-            pinyin_data: match self.pinyin_data {
-                Some(pinyin_data) => {
-                    #[cfg(not(feature = "inmut-data"))]
-                    assert!(pinyin_data
-                        .inited_notations()
-                        .contains(self.pinyin_notations));
-                    #[cfg(feature = "inmut-data")]
-                    pinyin_data.init_notations(self.pinyin_notations);
-
-                    Cow::Borrowed(pinyin_data)
-                }
-                None => Cow::Owned(PinyinData::new(self.pinyin_notations)),
-            },
+            pinyin_data,
             pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
             pinyin_notations: notations.into_boxed_slice(),
             pinyin_case_insensitive: self.pinyin_case_insensitive,
@@ -224,6 +243,10 @@ where
 
 /// ## Design
 /// API follows [`regex::Regex`](https://docs.rs/regex/latest/regex/struct.Regex.html).
+///
+/// ## Performance
+/// - If you need to build [`PinyinMatcher`] multiple times, pass [`PinyinMatcherBuilder::pinyin_data`] to the builder to avoid re-initializing the pinyin data every time.
+/// - For matching more than 1000 strings, enable [`PinyinMatcherBuilder::analyze`] to optimize the pattern further. (The analysis costs ~65us, equivalent to about 220~1100 matches.)
 ///
 /// TODO: No-pinyin pattern optimization
 /// TODO: Anchors, `*_at`
