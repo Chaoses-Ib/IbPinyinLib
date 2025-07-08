@@ -5,7 +5,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Chaoses-Ib"]
 description = "一个高性能拼音匹配库"
 homepage = "https://github.com/Chaoses-Ib/IbPinyinLib"
@@ -28,6 +28,12 @@ keywords.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["perf"]
+
+perf = ["unicode-case-map"]
+# -37% match time, +38 KiB
+unicode-case-map = []
+
 inmut-data = []
 minimal = ["inmut-data"]
 encoding = ["dep:widestring"]

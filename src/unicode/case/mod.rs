@@ -1,3 +1,6 @@
+#[cfg(feature = "unicode-case-map")]
+mod map;
+
 pub trait CharToMonoLowercase {
     /// The only multi-char lowercase mapping is 'İ' -> "i\u{307}", we just ignore the '\u{307}'.
     fn to_mono_lowercase(self) -> char;
@@ -5,8 +8,13 @@ pub trait CharToMonoLowercase {
 
 impl CharToMonoLowercase for char {
     fn to_mono_lowercase(self) -> char {
-        // TODO: Optimize away the binary search
-        self.to_lowercase().next().unwrap()
+        #[cfg(not(feature = "unicode-case-map"))]
+        return self.to_lowercase().next().unwrap();
+
+        // Optimize away the binary search
+        // Reduce total match time by ~37%
+        #[cfg(feature = "unicode-case-map")]
+        map::to_mono_lowercase(self)
     }
 }
 

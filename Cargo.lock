@@ -304,7 +304,7 @@ checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
 
 [[package]]
 name = "ib-pinyin"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "arraystring",
  "bitflags",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "ib-pinyin-c"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "diplomat",
  "diplomat-runtime",
