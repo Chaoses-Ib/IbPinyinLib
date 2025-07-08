@@ -1,9 +1,9 @@
 use std::{borrow::Cow, marker::PhantomData, ops::Range};
 
-use crate::pinyin::{PinyinData, PinyinNotation};
-
-mod unicode;
-use unicode::{CharToMonoLowercase, StrToMonoLowercase};
+use crate::{
+    pinyin::{PinyinData, PinyinNotation},
+    unicode::{CharToMonoLowercase, StrToMonoLowercase},
+};
 
 pub mod encoding;
 use encoding::EncodedStr;
