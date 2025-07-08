@@ -33,22 +33,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| matcher.find(black_box("pyssEverything")))
     });
 
-    c.bench_function("build", |b| {
-        b.iter(|| {
-            PinyinMatcher::builder("pysseve")
-                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
-                .build()
-        })
-    });
-    c.bench_function("build_analyze", |b| {
-        b.iter(|| {
-            PinyinMatcher::builder("pysseve")
-                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
-                .analyze()
-                .build()
-        })
-    });
-
     assert!(matcher.is_match("拼音搜索Everything"));
     c.bench_function("is_match", |b| {
         b.iter(|| matcher.is_match(black_box("拼音搜索Everything")))
@@ -70,6 +54,32 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
     c.bench_function("find_5_miss", |b| {
         b.iter(|| matcher.find(black_box("あなたは誰拼音搜索Evvrything")))
+    });
+
+    let ascii_25 = "12345678901234567890あなたは誰拼音搜索Everything";
+    assert!(analyzed.find(ascii_25).is_some());
+    c.bench_function("find_ascii_25_analyse", |b| {
+        b.iter(|| analyzed.find(black_box(ascii_25)))
+    });
+    assert!(matcher.find(ascii_25).is_some());
+    c.bench_function("find_ascii_25", |b| {
+        b.iter(|| matcher.find(black_box(ascii_25)))
+    });
+
+    c.bench_function("build", |b| {
+        b.iter(|| {
+            PinyinMatcher::builder("pysseve")
+                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .build()
+        })
+    });
+    c.bench_function("build_analyze", |b| {
+        b.iter(|| {
+            PinyinMatcher::builder("pysseve")
+                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .analyze()
+                .build()
+        })
     });
 }
 

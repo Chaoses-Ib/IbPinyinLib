@@ -5,6 +5,7 @@ pub trait CharToMonoLowercase {
 
 impl CharToMonoLowercase for char {
     fn to_mono_lowercase(self) -> char {
+        // TODO: Optimize away the binary search
         self.to_lowercase().next().unwrap()
     }
 }

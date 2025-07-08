@@ -473,6 +473,11 @@ where
             };
         }
 
+        // Fast fail optimization
+        if haystack_c.is_ascii() {
+            return None;
+        }
+
         // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
         //     for &notation in self.pinyin_notations_prefix_group.iter() {
         //         let pinyin = pinyin.notation(notation).unwrap();
