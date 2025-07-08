@@ -8,3 +8,16 @@ pub fn escape_bytes(bytes: &[u8]) -> String {
     }
     return pattern;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_bytes() {
+        assert_eq!(
+            escape_bytes(b"pysseve"),
+            "\\x70\\x79\\x73\\x73\\x65\\x76\\x65"
+        );
+    }
+}
