@@ -4,6 +4,7 @@ members = [
     "ib-pinyin",
     "ib-pinyin/bindings/c",
     # "ib-pinyin/bindings/diplomat"
+    "ib-romaji",
 ]
 
 [workspace.package]

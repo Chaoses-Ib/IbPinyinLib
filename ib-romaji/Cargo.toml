@@ -1,0 +1,18 @@
+[package]
+name = "ib-romaji"
+version = "0.1.0"
+edition = "2024"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+aho-corasick = "1"
+
+[[bench]]
+name = "romaji"
+harness = false
+
+[dev-dependencies]
+criterion = "0.6"
