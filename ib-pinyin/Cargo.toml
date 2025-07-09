@@ -1,0 +1,21 @@
+[package]
+name = "ib-pinyin"
+version = "0.2.8"
+edition = "2021"
+rust-version = "1.75"
+description = "一个高性能拼音匹配库"
+keywords = ["pinyin", "cjk"]
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+inmut-data = ["ib-matcher/inmut-data"]
+minimal = ["ib-matcher/minimal"]
+encoding = ["ib-matcher/encoding"]
+
+[dependencies]
+ib-matcher = { version = "0.2", path = "../ib-matcher" }

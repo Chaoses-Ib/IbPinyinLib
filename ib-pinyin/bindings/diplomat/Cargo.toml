@@ -1,5 +1,5 @@
 [package]
-name = "ib-pinyin-c"
+name = "ib-pinyin-diplomat"
 edition = "2021"
 version.workspace = true
 authors.workspace = true
@@ -15,8 +15,8 @@ keywords.workspace = true
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-diplomat = "0.7.0"
-diplomat-runtime = "0.7.0"
+diplomat = "0.12"
+diplomat-runtime = "0.12"
 ib-pinyin = { path = "../..", features = ["minimal", "encoding"] }
 widestring = "1.0.2"
 
@@ -24,4 +24,4 @@ widestring = "1.0.2"
 winres = "0.1.12"
 
 [package.metadata.winres]
-LegalCopyright = "https://github.com/Chaoses-Ib/IbPinyinLib"
+LegalCopyright = "https://github.com/Chaoses-Ib/ib-matcher"

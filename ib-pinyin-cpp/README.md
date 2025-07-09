@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 3.14)
 
 include(FetchContent)
 FetchContent_Declare(IbPinyin
-    GIT_REPOSITORY https://github.com/Chaoses-Ib/IbPinyinLib.git
+    GIT_REPOSITORY https://github.com/Chaoses-Ib/ib-matcher.git
     GIT_TAG        e576e81ca06a297436bba7b124630b5d64e3106f
 )
 FetchContent_MakeAvailable(IbPinyin)

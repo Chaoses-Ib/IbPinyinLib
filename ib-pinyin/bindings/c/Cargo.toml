@@ -1,13 +1,13 @@
 [package]
-name = "ib-pinyin-diplomat"
+name = "ib-pinyin-c"
+version = "0.2.8"
 edition = "2021"
-version.workspace = true
+description = "一个高性能拼音匹配库"
+keywords = ["pinyin", "cjk"]
 authors.workspace = true
-description.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
-keywords.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,8 +15,8 @@ keywords.workspace = true
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
-diplomat = "0.12"
-diplomat-runtime = "0.12"
+diplomat = "0.7.0"
+diplomat-runtime = "0.7.0"
 ib-pinyin = { path = "../..", features = ["minimal", "encoding"] }
 widestring = "1.0.2"
 
@@ -24,4 +24,4 @@ widestring = "1.0.2"
 winres = "0.1.12"
 
 [package.metadata.winres]
-LegalCopyright = "https://github.com/Chaoses-Ib/IbPinyinLib"
+LegalCopyright = "https://github.com/Chaoses-Ib/ib-matcher"

@@ -2,6 +2,6 @@ private/
 *.private
 *.private.*
 
-data/*.txt
+**/data/*.txt
 
 /target

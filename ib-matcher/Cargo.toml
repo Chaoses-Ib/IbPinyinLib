@@ -1,0 +1,52 @@
+[package]
+name = "ib-matcher"
+version = "0.2.8"
+edition = "2021"
+rust-version = "1.75"
+description = "一个高性能拼音匹配库"
+keywords = ["pinyin", "cjk"]
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["perf"]
+
+perf = ["unicode-case-map"]
+# -37% match time, +38 KiB
+unicode-case-map = []
+
+# Build size +837.5 KiB
+regex = ["dep:regex"]
+
+inmut-data = []
+minimal = ["inmut-data"]
+encoding = ["dep:widestring"]
+
+[dependencies]
+aho-corasick = "1"
+arraystring = "0.3.0"
+bitflags = "2.4.1"
+bon = "3"
+itertools = "0.14"
+# TODO: perf-dfa-full
+regex = { version = "1.10.2", default-features = false, features = [
+    "std",
+    "perf",
+], optional = true }
+widestring = { version = "1.0.2", optional = true }
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "matcher"
+harness = false
+
+[[bench]]
+name = "regex"
+harness = false
+# cargo bench --bench regex --features regex

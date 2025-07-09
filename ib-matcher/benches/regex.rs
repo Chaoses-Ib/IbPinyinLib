@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ib_pinyin::{matcher::PinyinMatcher, pinyin::PinyinNotation};
+use ib_matcher::{matcher::PinyinMatcher, pinyin::PinyinNotation};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     {

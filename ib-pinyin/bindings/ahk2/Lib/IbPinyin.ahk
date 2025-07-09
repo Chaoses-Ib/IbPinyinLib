@@ -1,5 +1,5 @@
 ; IbPinyinLib
-; https://github.com/Chaoses-Ib/IbPinyinLib
+; https://github.com/Chaoses-Ib/ib-matcher
 
 ; Use IbPinyin for 64-bit AutoHotkey, IbPinyin32 for 32-bit AutoHotkey
 #Requires AutoHotkey v2.0 64-bit

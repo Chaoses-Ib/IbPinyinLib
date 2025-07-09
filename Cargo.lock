@@ -303,7 +303,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
 
 [[package]]
-name = "ib-pinyin"
+name = "ib-matcher"
 version = "0.2.8"
 dependencies = [
  "aho-corasick",
@@ -314,6 +314,13 @@ dependencies = [
  "itertools 0.14.0",
  "regex",
  "widestring",
+]
+
+[[package]]
+name = "ib-pinyin"
+version = "0.2.8"
+dependencies = [
+ "ib-matcher",
 ]
 
 [[package]]

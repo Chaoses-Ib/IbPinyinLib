@@ -1,5 +1,5 @@
-# IbPinyinLib
-[![License](https://img.shields.io/crates/l/ib-pinyin.svg)](LICENSE.txt)
+# ib-matcher
+[![License](https://img.shields.io/crates/l/ib-matcher.svg)](LICENSE.txt)
 
 一个高性能 Rust 拼音匹配库。
 
@@ -20,7 +20,7 @@
 - 支持 Unicode 辅助平面汉字。
 
 ## 支持语言
-### [Rust](src)
+### [Rust](ib-pinyin)
 [![crates.io](https://img.shields.io/crates/v/ib-pinyin.svg)](https://crates.io/crates/ib-pinyin)
 [![Documentation](https://docs.rs/ib-pinyin/badge.svg)](https://docs.rs/ib-pinyin)
 
@@ -33,7 +33,7 @@ let matcher = PinyinMatcher::builder("pysousuoeve")
 assert!(matcher.is_match("拼音搜索Everything"));
 ```
 
-### [C](bindings/c)
+### [C](ib-pinyin/bindings/c)
 ```c
 #include <ib_pinyin/ib_pinyin.h>
 #include <ib_pinyin/notation.h>
@@ -49,9 +49,9 @@ bool is_match = ib_pinyin_is_match_u32c(U"pysousuoeve", U"拼音搜索Everything
 ```
 
 ### C++
-[原实现](C++)（停止维护）
+[原实现](ib-pinyin-cpp)（停止维护）
 
-### [AutoHotkey v2](bindings/ahk2)
+### [AutoHotkey v2](ib-pinyin/bindings/ahk2)
 ```ahk
 #Include <IbPinyin>
 
@@ -68,12 +68,12 @@ IsMatch := IbPinyin_Match("pysousuoeve", "拼音搜索Everything", IbPinyin_Asci
 ; 获取匹配范围
 是否匹配 := 拼音_匹配("pysousuoeve", "拼音搜索Everything", 拼音_简拼 | 拼音_全拼, &开始位置, &结束位置)
 ```
-[下载](https://github.com/Chaoses-Ib/IbPinyinLib/releases)
+[下载](https://github.com/Chaoses-Ib/ib-matcher/releases)
 
 ## 其它拼音相关项目
 语言 | 库 | 拼音 | 双拼 | 词典 | 匹配 | 其它
 --- | --- | --- | --- | --- | --- | ---
-Rust <br /> (C, AHK2) | IbPinyinLib | ✔️ Unicode | ✔️ | ❌ | ✔️ | 性能优先；支持 Unicode 辅助平面汉字
+Rust <br /> (C, AHK2) | ib-matcher | ✔️ Unicode | ✔️ | ❌ | ✔️ | 性能优先；支持 Unicode 辅助平面汉字
 Rust <br /> ([Node.js](https://github.com/Brooooooklyn/pinyin)) | [rust-pinyin](https://github.com/mozillazg/rust-pinyin) | ✔️ Unicode | ❌ | ❌ | ❌
 Rust | [rust-pinyin](https://github.com/samlink/rust_pinyin) | 简拼 | ❌ | ❌ | ❌
 C# | [ToolGood.Words.Pinyin](https://github.com/toolgood/ToolGood.Words.Pinyin) | ✔️ | ❌ | ❌ | 单编码？
@@ -94,17 +94,17 @@ Perl <br /> ([Rust](https://github.com/chowdhurya/rust-unidecode/), [Java](https
 - [Simple tokenizer: 支持中文和拼音的 SQLite fts5 全文搜索扩展 ｜ A SQLite3 fts5 tokenizer which supports Chinese and PinYin](https://github.com/wangfenjin/simple)
 
 文件搜索/启动器：
-- [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 IbPinyinLib）
+- [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 ib-matcher）
 - [Listary](https://www.listary.com/)（简拼、全拼）
 
 文件管理：
 - 资源管理器
-  - [资源管理器拼音搜索扩展](https://github.com/sxzxs/explore_select_items)（基于 IbPinyinLib）
+  - [资源管理器拼音搜索扩展](https://github.com/sxzxs/explore_select_items)（基于 ib-matcher）
 - [Directory Opus](https://github.com/Chaoses-Ib/DirectoryOpus)（仅简拼）
 - Total Commander：[QuickSearch eXtended](https://www.ghisler.ch/board/viewtopic.php?t=22592)（仅简拼）
 
 终端：
-- [bash-pinyin-completion-rs: Simple completion script for pinyin, written in rust.](https://github.com/wxiwnd/bash-pinyin-completion-rs)（基于 IbPinyinLib）
+- [bash-pinyin-completion-rs: Simple completion script for pinyin, written in rust.](https://github.com/wxiwnd/bash-pinyin-completion-rs)（基于 ib-matcher）
 
 文本编辑：
 - Visual Studio
