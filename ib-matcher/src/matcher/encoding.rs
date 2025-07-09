@@ -1,13 +1,22 @@
+use std::{ops::RangeFrom, slice::SliceIndex};
+
 /// ## Performance
 /// Although multiple encodings are supported, UTF-8 (`str`) is most optimized.
 ///
 /// TODO: Extended ASCII code pages
 /// TODO: Index/SliceIndex
 pub trait EncodedStr: Sealed {
-    const ELEMENT_LEN_BYTE: usize;
+    type CHAR;
+    type SLICE: ?Sized;
+
+    const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<Self::CHAR>();
 
     fn is_ascii(&self) -> bool;
     fn as_bytes(&self) -> &[u8];
+
+    unsafe fn get_unchecked<I: SliceIndex<Self::SLICE, Output = Self::SLICE>>(&self, i: I)
+        -> &Self;
+    unsafe fn get_unchecked_from(&self, range: RangeFrom<usize>) -> &Self;
 
     fn char_index_strs(&self) -> impl Iterator<Item = (usize, char, &Self)>;
     fn char_len_next_strs(&self) -> impl Iterator<Item = (char, usize, &Self)>;
@@ -28,7 +37,8 @@ impl Sealed for widestring::U16Str {}
 impl Sealed for widestring::U32Str {}
 
 impl EncodedStr for str {
-    const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u8>();
+    type CHAR = u8;
+    type SLICE = str;
 
     fn is_ascii(&self) -> bool {
         self.is_ascii()
@@ -36,6 +46,17 @@ impl EncodedStr for str {
 
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
+    }
+
+    unsafe fn get_unchecked<I: SliceIndex<Self::SLICE, Output = Self::SLICE>>(
+        &self,
+        i: I,
+    ) -> &Self {
+        self.get_unchecked(i)
+    }
+
+    unsafe fn get_unchecked_from(&self, range: RangeFrom<usize>) -> &Self {
+        self.get_unchecked(range)
     }
 
     fn char_index_strs(&self) -> impl Iterator<Item = (usize, char, &Self)> {
@@ -56,7 +77,8 @@ impl EncodedStr for str {
 
 #[cfg(feature = "encoding")]
 impl EncodedStr for widestring::U16Str {
-    const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u16>();
+    type CHAR = u16;
+    type SLICE = [u16];
 
     fn is_ascii(&self) -> bool {
         // TODO: Since this may not be optimized with SIMD, should we use `is_in_range` instead?
@@ -70,6 +92,17 @@ impl EncodedStr for widestring::U16Str {
                 self.len() * core::mem::size_of::<u16>(),
             )
         }
+    }
+
+    unsafe fn get_unchecked<I: SliceIndex<Self::SLICE, Output = Self::SLICE>>(
+        &self,
+        i: I,
+    ) -> &Self {
+        self.get_unchecked(i)
+    }
+
+    unsafe fn get_unchecked_from(&self, range: RangeFrom<usize>) -> &Self {
+        self.get_unchecked(range)
     }
 
     fn char_index_strs(&self) -> impl Iterator<Item = (usize, char, &Self)> {
@@ -86,7 +119,8 @@ impl EncodedStr for widestring::U16Str {
 
 #[cfg(feature = "encoding")]
 impl EncodedStr for widestring::U32Str {
-    const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u32>();
+    type CHAR = u32;
+    type SLICE = [u32];
 
     fn is_ascii(&self) -> bool {
         // TODO: Since this may not be optimized with SIMD, should we use `is_in_range` instead?
@@ -100,6 +134,17 @@ impl EncodedStr for widestring::U32Str {
                 self.len() * core::mem::size_of::<u32>(),
             )
         }
+    }
+
+    unsafe fn get_unchecked<I: SliceIndex<Self::SLICE, Output = Self::SLICE>>(
+        &self,
+        i: I,
+    ) -> &Self {
+        self.get_unchecked(i)
+    }
+
+    unsafe fn get_unchecked_from(&self, range: RangeFrom<usize>) -> &Self {
+        self.get_unchecked(range)
     }
 
     fn char_index_strs(&self) -> impl Iterator<Item = (usize, char, &Self)> {

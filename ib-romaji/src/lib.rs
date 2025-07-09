@@ -5,6 +5,7 @@ mod kana;
 /// https://en.wikipedia.org/wiki/Hepburn_romanization
 ///
 /// TODO: Kanji
+#[derive(Clone)]
 pub struct HepburnRomanizer {
     ac: AhoCorasick,
 }
@@ -26,7 +27,7 @@ impl HepburnRomanizer {
     /// assert_eq!(HepburnRomanizer::new().romanize("あ"), Some((3, "a")));
     /// ```
     /// TODO: Iter
-    pub fn romanize(&self, s: &str) -> Option<(usize, &'static str)> {
+    pub fn romanize<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, &'static str)> {
         let m = self.ac.find(Input::new(s).anchored(Anchored::Yes))?;
         Some((m.len(), kana::HEPBURN_ROMAJIS[m.pattern()]))
     }

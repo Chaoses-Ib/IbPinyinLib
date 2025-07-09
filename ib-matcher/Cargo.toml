@@ -15,6 +15,8 @@ license.workspace = true
 [features]
 default = ["perf"]
 
+romaji = ["dep:ib-romaji"]
+
 perf = ["unicode-case-map"]
 # -37% match time, +38 KiB
 unicode-case-map = []
@@ -31,6 +33,7 @@ aho-corasick = "1"
 arraystring = "0.3.0"
 bitflags = "2.4.1"
 bon = "3"
+ib-romaji = { version = "0.1", optional = true, path = "../ib-romaji" }
 itertools = "0.14"
 # TODO: perf-dfa-full
 regex = { version = "1.10.2", default-features = false, features = [

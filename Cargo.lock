@@ -302,6 +302,7 @@ dependencies = [
  "bitflags",
  "bon",
  "criterion",
+ "ib-romaji",
  "itertools 0.14.0",
  "regex",
  "widestring",

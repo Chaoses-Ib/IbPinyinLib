@@ -16,9 +16,13 @@ use matches::SubMatch;
 mod pinyin;
 #[cfg(feature = "regex")]
 mod regex_utils;
+#[cfg(feature = "romaji")]
+mod romaji;
 
 pub use matches::Match;
 pub use pinyin::*;
+#[cfg(feature = "romaji")]
+pub use romaji::*;
 
 enum AsciiMatcher {
     /// - find_ascii_too_short: +170%
@@ -72,6 +76,9 @@ where
     pinyin_notations_prefix_group: Box<[PinyinNotation]>,
     pinyin_notations: Box<[PinyinNotation]>,
 
+    #[cfg(feature = "romaji")]
+    romaji: Option<RomajiMatchConfig<'a>>,
+
     _haystack_str: PhantomData<HaystackStr>,
 }
 
@@ -109,6 +116,7 @@ where
         #[builder(default = false)] is_pattern_partial: bool,
 
         pinyin: Option<PinyinMatchConfig<'a>>,
+        #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
     ) -> Self {
         let pattern_bytes = pattern.as_bytes().to_owned();
         let pattern: String = pattern.char_index_strs().map(|(_, c, _)| c).collect();
@@ -235,6 +243,9 @@ where
             pinyin,
             pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
             pinyin_notations: notations.into_boxed_slice(),
+
+            #[cfg(feature = "romaji")]
+            romaji,
 
             _haystack_str: PhantomData,
         }
@@ -383,7 +394,7 @@ where
                 }
             }
         };
-        let matched_len = matched_len + haystack_c_len;
+        let matched_len_next = matched_len + haystack_c_len;
 
         let (pattern_c, pattern_next) = pattern.split_first().unwrap();
 
@@ -393,15 +404,44 @@ where
         } {
             // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
             return if pattern_next.is_empty() {
-                Some(SubMatch::new(matched_len, false))
+                Some(SubMatch::new(matched_len_next, false))
             } else {
-                self.sub_test(pattern_next, haystack_next, matched_len)
+                self.sub_test(pattern_next, haystack_next, matched_len_next)
             };
         }
 
         // Fast fail optimization
         if haystack_c.is_ascii() {
             return None;
+        }
+
+        #[cfg(feature = "romaji")]
+        if let Some(romaji) = &self.romaji {
+            // const {
+            //     assert!(
+            //         HaystackStr::ELEMENT_LEN_BYTE == 1,
+            //         "non-UTF-8 romaji match is not yet supported"
+            //     );
+            // }
+            debug_assert_eq!(
+                HaystackStr::ELEMENT_LEN_BYTE,
+                1,
+                "non-UTF-8 romaji match is not yet supported"
+            );
+            if let Some((len, romaji)) = romaji.romanizer.romanize(haystack.as_bytes()) {
+                let match_len_next = matched_len + len;
+                match self.sub_test_pinyin::<1>(
+                    pattern,
+                    unsafe { haystack.get_unchecked_from(len..) },
+                    match_len_next,
+                    romaji,
+                ) {
+                    (true, Some(submatch)) => return Some(submatch),
+                    (true, None) => (),
+                    (false, None) => (),
+                    (false, Some(_)) => unreachable!(),
+                }
+            }
         }
 
         // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
@@ -432,7 +472,12 @@ where
             .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
                 for &notation in self.pinyin_notations_prefix_group.iter() {
                     let pinyin = pinyin.notation(notation).unwrap();
-                    match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                    match self.sub_test_pinyin::<0>(
+                        pattern,
+                        haystack_next,
+                        matched_len_next,
+                        pinyin,
+                    ) {
                         (true, Some(submatch)) => return Some(submatch),
                         (true, None) => (),
                         (false, None) => break,
@@ -441,7 +486,12 @@ where
                 }
                 for &notation in self.pinyin_notations.iter() {
                     let pinyin = pinyin.notation(notation).unwrap();
-                    match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+                    match self.sub_test_pinyin::<0>(
+                        pattern,
+                        haystack_next,
+                        matched_len_next,
+                        pinyin,
+                    ) {
                         (true, Some(submatch)) => return Some(submatch),
                         (true, None) => (),
                         (false, None) => (),
@@ -459,7 +509,7 @@ where
     ///
     /// ## Returns
     /// (pinyin_matched, submatch)
-    fn sub_test_pinyin(
+    fn sub_test_pinyin<const LANG: u8>(
         &self,
         pattern: &[PatternChar],
         haystack_next: &HaystackStr,
@@ -469,7 +519,12 @@ where
         debug_assert!(!pattern.is_empty());
         debug_assert_eq!(pinyin, pinyin.to_lowercase());
 
-        let pattern_s = match self.pinyin.case_insensitive {
+        let pattern_s = match match LANG {
+            0 => self.pinyin.case_insensitive,
+            #[cfg(feature = "romaji")]
+            1 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.case_insensitive,
+            _ => unreachable!(),
+        } {
             true => pattern[0].s_lowercase,
             false => pattern[0].s,
         };
@@ -523,6 +578,13 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[macro_export]
+    macro_rules! assert_match {
+        ($m:expr, $expected:expr) => {
+            assert_eq!($m.map(|m| (m.start(), m.len())), $expected);
+        };
+    }
 
     fn assert_match(m: Option<Match>, expected: Option<(usize, usize)>) {
         assert_eq!(m.map(|m| (m.start(), m.len())), expected);
