@@ -8,7 +8,7 @@
 use std::sync::{OnceLock, RwLock, RwLockReadGuard};
 
 use crate::{
-    matcher::{encoding::EncodedStr, IbMatcher},
+    matcher::{encoding::EncodedStr, IbMatcher, PinyinMatchConfig},
     pinyin::{PinyinData, PinyinNotation},
 };
 
@@ -82,8 +82,11 @@ where
         pattern: pattern.to_owned(),
         pinyin_notations,
         matcher: IbMatcher::builder(pattern)
-            .pinyin_data(pinyin_data())
-            .pinyin_notations(pinyin_notations)
+            .pinyin(
+                PinyinMatchConfig::builder(pinyin_notations)
+                    .data(pinyin_data())
+                    .build(),
+            )
             .build(),
     };
 

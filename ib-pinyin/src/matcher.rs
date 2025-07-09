@@ -1,5 +1,5 @@
 use ib_matcher::{
-    matcher::{analyze, encoding::EncodedStr, IbMatcher},
+    matcher::{analyze, encoding::EncodedStr, IbMatcher, PinyinMatchConfig},
     pinyin::{PinyinData, PinyinNotation},
 };
 
@@ -94,9 +94,12 @@ where
                 .maybe_analyze_config(self.analyze_config)
                 .case_insensitive(self.case_insensitive)
                 .is_pattern_partial(self.is_pattern_partial)
-                .maybe_pinyin_data(self.pinyin_data)
-                .pinyin_notations(self.pinyin_notations)
-                .pinyin_case_insensitive(self.pinyin_case_insensitive)
+                .pinyin(
+                    PinyinMatchConfig::builder(self.pinyin_notations)
+                        .maybe_data(self.pinyin_data)
+                        .case_insensitive(self.pinyin_case_insensitive)
+                        .build(),
+                )
                 .build(),
         }
     }

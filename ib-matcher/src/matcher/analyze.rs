@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use bon::Builder;
 
-use crate::pinyin::{PinyinData, PinyinNotation};
+use crate::{matcher::PinyinMatchConfig, pinyin::PinyinNotation};
 
 #[derive(Builder)]
 pub struct PatternAnalyzeConfig {
@@ -26,24 +26,23 @@ impl Default for PatternAnalyzeConfig {
 
 pub(crate) struct PatternAnalyzer<'a> {
     pattern: &'a str,
-    pinyin_data: &'a PinyinData,
-    notations: PinyinNotation,
 
-    used_notations: PinyinNotation,
+    pinyin: &'a PinyinMatchConfig<'a>,
+    pinyin_used_notations: PinyinNotation,
+
     #[cfg(test)]
     min_haystack_chars: usize,
     min_haystack_len: usize,
 }
 
 impl<'a> PatternAnalyzer<'a> {
-    pub fn new(pattern: &'a str, pinyin_data: &'a PinyinData, notations: PinyinNotation) -> Self {
+    pub fn new(pattern: &'a str, pinyin: &'a PinyinMatchConfig) -> Self {
         // debug_assert_eq!(pattern, pattern.to_mono_lowercase());
         // TODO: Case
         Self {
             pattern,
-            pinyin_data,
-            notations,
-            used_notations: PinyinNotation::empty(),
+            pinyin,
+            pinyin_used_notations: PinyinNotation::empty(),
             #[cfg(test)]
             min_haystack_chars: 0,
             min_haystack_len: 0,
@@ -62,7 +61,7 @@ impl<'a> PatternAnalyzer<'a> {
 
     pub fn analyze(&mut self, config: PatternAnalyzeConfig) {
         if config.traversal {
-            self.used_notations = PinyinNotation::empty();
+            self.pinyin_used_notations = PinyinNotation::empty();
 
             #[cfg(test)]
             {
@@ -72,11 +71,11 @@ impl<'a> PatternAnalyzer<'a> {
 
             self.sub_analyze(self.pattern, 0, 0);
         } else {
-            self.used_notations = self.notations;
+            self.pinyin_used_notations = self.pinyin.notations;
 
             // Traversal can give a better lower bound
             let min_haystack_chars = {
-                match self.used_notations.max_len() {
+                match self.pinyin_used_notations.max_len() {
                     Some(max_len) => {
                         // - Ascii: "shuang" / 6 = 1, "a" / 6 = 1
                         self.pattern.len().div_ceil(max_len)
@@ -111,26 +110,29 @@ impl<'a> PatternAnalyzer<'a> {
         let c = pattern.chars().next().unwrap();
 
         let mut any_matched_single_char = false;
-        for notation in self.notations.iter() {
-            for matched in self.pinyin_data.match_pinyin(notation, pattern) {
+        for notation in self.pinyin.notations.iter() {
+            for matched in self.pinyin.data.match_pinyin(notation, pattern) {
                 let mut matched_single_char = false;
                 if matched.len() == 1 {
                     matched_single_char = true;
 
                     if notation == PinyinNotation::Ascii
-                        && self.notations.contains(PinyinNotation::AsciiFirstLetter)
+                        && self
+                            .pinyin
+                            .notations
+                            .contains(PinyinNotation::AsciiFirstLetter)
                     {
                         // Only let AsciiFirstLetter analyze to prune the tree
                         continue;
                     }
-                } else if self.notations.contains(PinyinNotation::Unicode)
+                } else if self.pinyin.notations.contains(PinyinNotation::Unicode)
                     && matched.chars().nth(1).is_none()
                 {
                     matched_single_char = true;
                 }
                 any_matched_single_char |= matched_single_char;
 
-                self.used_notations |= notation;
+                self.pinyin_used_notations |= notation;
 
                 // `MAX_RANGE` starts from 0x3007, at least 3 bytes
                 let min_len = min_len
@@ -162,8 +164,8 @@ impl<'a> PatternAnalyzer<'a> {
     }
 
     /// - If [`PinyinNotation::Ascii`] and [`PinyinNotation::AsciiFirstLetter`] are both enabled, [`PinyinNotation::Ascii`] is only considered used if the pattern uses any non-single-letter pinyin from [`PinyinNotation::Ascii`].
-    pub fn used_notations(&self) -> PinyinNotation {
-        self.used_notations
+    pub fn pinyin_used_notations(&self) -> PinyinNotation {
+        self.pinyin_used_notations
     }
 
     #[cfg(test)]
@@ -185,8 +187,8 @@ impl<'a> PatternAnalyzer<'a> {
         if pattern.is_empty() {
             return;
         }
-        for notation in self.notations.iter() {
-            for matched in self.pinyin_data.match_pinyin(notation, pattern) {
+        for notation in self.pinyin.notations.iter() {
+            for matched in self.pinyin.data.match_pinyin(notation, pattern) {
                 println!("{}{matched} {:X}", " ".repeat(depth), notation.bits());
                 self.sub_tree(&pattern[matched.len()..], depth + 1);
             }
@@ -196,6 +198,8 @@ impl<'a> PatternAnalyzer<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::pinyin::PinyinData;
+
     use super::*;
 
     #[ignore]
@@ -203,44 +207,46 @@ mod tests {
     fn tree() {
         let notations = PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter;
         let pinyin_data = PinyinData::new(notations);
+        let pinyin = PinyinMatchConfig::builder(notations)
+            .data(&pinyin_data)
+            .build();
         let pattern = "pysousuoeve";
-        let analyzer = PatternAnalyzer::new(pattern, &pinyin_data, notations);
+        let analyzer = PatternAnalyzer::new(pattern, &pinyin);
         analyzer.tree();
     }
 
     #[test]
     fn used_notations() {
         let pinyin_data = PinyinData::new(PinyinNotation::all());
+        let pinyin =
+            PinyinMatchConfig::builder(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .data(&pinyin_data)
+                .build();
 
-        let mut analyzer = PatternAnalyzer::new(
-            "pysousuoeve",
-            &pinyin_data,
-            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
-        );
+        let mut analyzer = PatternAnalyzer::new("pysousuoeve", &pinyin);
         analyzer.analyze_std();
         assert_eq!(
-            analyzer.used_notations(),
+            analyzer.pinyin_used_notations(),
             PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter
         );
 
-        let mut analyzer = PatternAnalyzer::new(
-            "pyssEve",
-            &pinyin_data,
-            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
-        );
+        let mut analyzer = PatternAnalyzer::new("pyssEve", &pinyin);
         analyzer.analyze_std();
-        assert_eq!(analyzer.used_notations(), PinyinNotation::AsciiFirstLetter);
+        assert_eq!(
+            analyzer.pinyin_used_notations(),
+            PinyinNotation::AsciiFirstLetter
+        );
     }
 
     #[test]
     fn min_haystack_len() {
         let pinyin_data = PinyinData::new(PinyinNotation::all());
+        let pinyin =
+            PinyinMatchConfig::builder(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .data(&pinyin_data)
+                .build();
 
-        let mut analyzer = PatternAnalyzer::new(
-            "pysousuoeve",
-            &pinyin_data,
-            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
-        );
+        let mut analyzer = PatternAnalyzer::new("pysousuoeve", &pinyin);
         analyzer.analyze_default();
         assert_eq!(analyzer.min_haystack_chars(), 2);
         assert_eq!(analyzer.min_haystack_len(), 2);
@@ -248,11 +254,7 @@ mod tests {
         assert_eq!(analyzer.min_haystack_chars(), 7);
         assert_eq!(analyzer.min_haystack_len(), 11);
 
-        let mut analyzer = PatternAnalyzer::new(
-            "pyssEve",
-            &pinyin_data,
-            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
-        );
+        let mut analyzer = PatternAnalyzer::new("pyssEve", &pinyin);
         analyzer.analyze_default();
         assert_eq!(analyzer.min_haystack_chars(), 2);
         assert_eq!(analyzer.min_haystack_len(), 2);
@@ -260,11 +262,7 @@ mod tests {
         assert_eq!(analyzer.min_haystack_chars(), 7);
         assert_eq!(analyzer.min_haystack_len(), 7);
 
-        let mut analyzer = PatternAnalyzer::new(
-            "pysseve",
-            &pinyin_data,
-            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
-        );
+        let mut analyzer = PatternAnalyzer::new("pysseve", &pinyin);
         analyzer.analyze_default();
         assert_eq!(analyzer.min_haystack_chars(), 2);
         assert_eq!(analyzer.min_haystack_len(), 2);

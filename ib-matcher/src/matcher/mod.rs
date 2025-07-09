@@ -1,9 +1,9 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::marker::PhantomData;
 
 use bon::bon;
 
 use crate::{
-    pinyin::{PinyinData, PinyinNotation},
+    pinyin::PinyinNotation,
     unicode::{CharToMonoLowercase, StrToMonoLowercase},
 };
 
@@ -13,10 +13,12 @@ use encoding::EncodedStr;
 pub mod analyze;
 mod matches;
 use matches::SubMatch;
+mod pinyin;
 #[cfg(feature = "regex")]
 mod regex_utils;
 
 pub use matches::Match;
+pub use pinyin::*;
 
 enum AsciiMatcher {
     /// - find_ascii_too_short: +170%
@@ -66,10 +68,9 @@ where
     case_insensitive: bool,
     is_pattern_partial: bool,
 
-    pinyin_data: Cow<'a, PinyinData>,
+    pinyin: PinyinMatchConfig<'a>,
     pinyin_notations_prefix_group: Box<[PinyinNotation]>,
     pinyin_notations: Box<[PinyinNotation]>,
-    pinyin_case_insensitive: bool,
 
     _haystack_str: PhantomData<HaystackStr>,
 }
@@ -107,30 +108,18 @@ where
 
         #[builder(default = false)] is_pattern_partial: bool,
 
-        /// Default: `new()` on `build()`
-        ///
-        /// Must be inited with required notations if `inmut-data` feature is not enabled.
-        pinyin_data: Option<&'a PinyinData>,
-
-        #[builder(default = PinyinNotation::empty())] pinyin_notations: PinyinNotation,
-
-        #[builder(default = false)] pinyin_case_insensitive: bool,
+        pinyin: Option<PinyinMatchConfig<'a>>,
     ) -> Self {
         let pattern_bytes = pattern.as_bytes().to_owned();
         let pattern: String = pattern.char_index_strs().map(|(_, c, _)| c).collect();
 
+        let pinyin =
+            pinyin.unwrap_or_else(|| PinyinMatchConfig::notations(PinyinNotation::empty()));
         // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
-        let pinyin_data = match pinyin_data {
-            Some(pinyin_data) => {
-                #[cfg(not(feature = "inmut-data"))]
-                assert!(pinyin_data.inited_notations().contains(pinyin_notations));
-                #[cfg(feature = "inmut-data")]
-                pinyin_data.init_notations(pinyin_notations);
-
-                Cow::Borrowed(pinyin_data)
-            }
-            None => Cow::Owned(PinyinData::new(pinyin_notations)),
-        };
+        #[cfg(not(feature = "inmut-data"))]
+        assert!(pinyin.data.inited_notations().contains(pinyin.notations));
+        #[cfg(feature = "inmut-data")]
+        pinyin.data.init_notations(pinyin.notations);
 
         let pattern_string = pattern;
         let pattern_s: &str = pattern_string.as_str();
@@ -140,8 +129,7 @@ where
         let pattern_s_lowercase: &str = pattern_string_lowercase.as_str();
         let pattern_s_lowercase: &'static str = unsafe { std::mem::transmute(pattern_s_lowercase) };
 
-        let mut analyzer =
-            analyze::PatternAnalyzer::new(pattern_s_lowercase, &pinyin_data, pinyin_notations);
+        let mut analyzer = analyze::PatternAnalyzer::new(pattern_s_lowercase, &pinyin);
         analyzer.analyze(analyze_config.unwrap_or_else(|| {
             if analyze {
                 analyze::PatternAnalyzeConfig::standard()
@@ -149,7 +137,7 @@ where
                 analyze::PatternAnalyzeConfig::default()
             }
         }));
-        let pinyin_notations = analyzer.used_notations();
+        let pinyin_notations = analyzer.pinyin_used_notations();
         // TODO: Optimize if only AsciiFirstLetter is used
 
         let (notations_prefix_group, unprefixable_pinyin_notations) = match pinyin_notations
@@ -244,10 +232,9 @@ where
             case_insensitive,
             is_pattern_partial,
 
-            pinyin_data,
+            pinyin,
             pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
             pinyin_notations: notations.into_boxed_slice(),
-            pinyin_case_insensitive,
 
             _haystack_str: PhantomData,
         }
@@ -440,7 +427,8 @@ where
         // None
 
         // Reduce total time by 45~65% compared to using `get_pinyins()`
-        self.pinyin_data
+        self.pinyin
+            .data
             .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
                 for &notation in self.pinyin_notations_prefix_group.iter() {
                     let pinyin = pinyin.notation(notation).unwrap();
@@ -481,7 +469,7 @@ where
         debug_assert!(!pattern.is_empty());
         debug_assert_eq!(pinyin, pinyin.to_lowercase());
 
-        let pattern_s = match self.pinyin_case_insensitive {
+        let pattern_s = match self.pinyin.case_insensitive {
             true => pattern[0].s_lowercase,
             false => pattern[0].s,
         };
@@ -554,7 +542,7 @@ mod test {
         // assert!(IbMatcher::is_haystack_too_short_with_pattern(&[], "a") == false);
 
         let matcher = IbMatcher::builder("pysseve")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .analyze(true)
             .build();
         assert!(matcher.is_haystack_too_short(""));
@@ -569,7 +557,7 @@ mod test {
     #[test]
     fn test() {
         let matcher = IbMatcher::builder("xing")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(""), None);
         assert_match(matcher.test("xing"), Some((0, 4)));
@@ -577,7 +565,7 @@ mod test {
         assert_match(matcher.test("行"), Some((0, 3)));
 
         let matcher = IbMatcher::builder("ke")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test("ke"), Some((0, 2)));
         assert_match(matcher.test("科"), Some((0, 3)));
@@ -585,13 +573,15 @@ mod test {
         assert_match(matcher.test("凯尔"), None);
 
         let matcher = IbMatcher::builder("")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(""), Some((0, 0)));
         assert_match(matcher.test("abc"), Some((0, 0)));
 
         let matcher = IbMatcher::builder("ke")
-            .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
             .build();
         assert_match(matcher.test("ke"), Some((0, 2)));
         assert_match(matcher.test("科"), Some((0, 3)));
@@ -607,7 +597,7 @@ mod test {
         use widestring::u16str;
 
         let matcher = IbMatcher::builder(u16str!("xing"))
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         // assert_match(matcher.test(u16str!("")), None);
 
@@ -617,7 +607,7 @@ mod test {
         assert_match(matcher.test(u16str!("行")), Some((0, 1)));
 
         let matcher = IbMatcher::builder(u16str!("ke"))
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(u16str!("ke")), Some((0, 2)));
         assert_match(matcher.test(u16str!("科")), Some((0, 1)));
@@ -625,13 +615,15 @@ mod test {
         assert_match(matcher.test(u16str!("凯尔")), None);
 
         let matcher = IbMatcher::builder(u16str!(""))
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(u16str!("")), Some((0, 0)));
         assert_match(matcher.test(u16str!("abc")), Some((0, 0)));
 
         let matcher = IbMatcher::builder(u16str!("ke"))
-            .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
             .build();
         assert_match(matcher.test(u16str!("ke")), Some((0, 2)));
         assert_match(matcher.test(u16str!("科")), Some((0, 1)));
@@ -645,8 +637,11 @@ mod test {
     fn test_case_insensitive() {
         let matcher = IbMatcher::builder("xing")
             .case_insensitive(false)
-            .pinyin_case_insensitive(false)
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(
+                PinyinMatchConfig::builder(PinyinNotation::Ascii)
+                    .case_insensitive(false)
+                    .build(),
+            )
             .build();
         assert_match(matcher.test("xing"), Some((0, 4)));
         assert_match(matcher.test("XiNG"), None);
@@ -654,8 +649,11 @@ mod test {
 
         let matcher = IbMatcher::builder("XING")
             .case_insensitive(true)
-            .pinyin_case_insensitive(false)
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(
+                PinyinMatchConfig::builder(PinyinNotation::Ascii)
+                    .case_insensitive(false)
+                    .build(),
+            )
             .build();
         assert_match(matcher.test("xing"), Some((0, 4)));
         assert_match(matcher.test("XiNG"), Some((0, 4)));
@@ -663,8 +661,11 @@ mod test {
 
         let matcher = IbMatcher::builder("XING")
             .case_insensitive(true)
-            .pinyin_case_insensitive(true)
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(
+                PinyinMatchConfig::builder(PinyinNotation::Ascii)
+                    .case_insensitive(true)
+                    .build(),
+            )
             .build();
         assert_match(matcher.test("xing"), Some((0, 4)));
         assert_match(matcher.test("XiNG"), Some((0, 4)));
@@ -672,8 +673,11 @@ mod test {
 
         let matcher = IbMatcher::builder("XiNG")
             .case_insensitive(false)
-            .pinyin_case_insensitive(true)
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(
+                PinyinMatchConfig::builder(PinyinNotation::Ascii)
+                    .case_insensitive(true)
+                    .build(),
+            )
             .build();
         assert_match(matcher.test("xing"), None);
         assert_match(matcher.test("XiNG"), Some((0, 4)));
@@ -683,7 +687,7 @@ mod test {
     #[test]
     fn find() {
         let matcher = IbMatcher::builder("xing")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.find(""), None);
         assert_match(matcher.find("buxing"), Some((2, 4)));
@@ -691,7 +695,7 @@ mod test {
         assert_match(matcher.find("不行"), Some((3, 3)));
 
         let matcher = IbMatcher::builder("")
-            .pinyin_notations(PinyinNotation::Ascii)
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.find(""), Some((0, 0)));
         assert_match(matcher.find("abc"), Some((0, 0)));

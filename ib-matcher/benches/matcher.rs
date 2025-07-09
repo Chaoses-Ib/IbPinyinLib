@@ -1,14 +1,21 @@
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use ib_matcher::{matcher::IbMatcher, pinyin::PinyinNotation};
+use ib_matcher::{
+    matcher::{IbMatcher, PinyinMatchConfig},
+    pinyin::PinyinNotation,
+};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let matcher = IbMatcher::builder("pysseve")
-        .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+        .pinyin(PinyinMatchConfig::notations(
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        ))
         .build();
     let analyzed = IbMatcher::builder("pysseve")
-        .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+        .pinyin(PinyinMatchConfig::notations(
+            PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+        ))
         .analyze(true)
         .build();
 
@@ -71,14 +78,18 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("build", |b| {
         b.iter(|| {
             IbMatcher::builder("pysseve")
-                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .pinyin(PinyinMatchConfig::notations(
+                    PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+                ))
                 .build()
         })
     });
     c.bench_function("build_analyze", |b| {
         b.iter(|| {
             IbMatcher::builder("pysseve")
-                .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .pinyin(PinyinMatchConfig::notations(
+                    PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+                ))
                 .analyze(true)
                 .build()
         })

@@ -1,7 +1,10 @@
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use ib_matcher::{matcher::IbMatcher, pinyin::PinyinNotation};
+use ib_matcher::{
+    matcher::{IbMatcher, PinyinMatchConfig},
+    pinyin::PinyinNotation,
+};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     {
@@ -56,7 +59,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     {
         let matcher = IbMatcher::builder("pysseve")
-            .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
             .build();
         assert!(matcher.find("pyssEverything").is_some());
         c.bench_function("find_ascii", |b| {
