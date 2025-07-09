@@ -1,6 +1,6 @@
 [package]
 name = "ib-matcher"
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
 description = "一个高性能拼音匹配库"

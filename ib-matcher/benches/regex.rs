@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use ib_matcher::{matcher::PinyinMatcher, pinyin::PinyinNotation};
+use ib_matcher::{matcher::IbMatcher, pinyin::PinyinNotation};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     {
@@ -55,7 +55,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     }
 
     {
-        let matcher = PinyinMatcher::builder("pysseve")
+        let matcher = IbMatcher::builder("pysseve")
             .pinyin_notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
             .build();
         assert!(matcher.find("pyssEverything").is_some());

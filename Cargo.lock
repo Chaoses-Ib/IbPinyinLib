@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "ib-matcher"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "aho-corasick",
  "arraystring",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "ib-pinyin"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "ib-matcher",
 ]

@@ -8,7 +8,7 @@
 use std::sync::{OnceLock, RwLock, RwLockReadGuard};
 
 use crate::{
-    matcher::{encoding::EncodedStr, PinyinMatcher},
+    matcher::{encoding::EncodedStr, IbMatcher},
     pinyin::{PinyinData, PinyinNotation},
 };
 
@@ -23,7 +23,7 @@ pub fn pinyin_data() -> &'static PinyinData {
 // fn with_cached_matcher<'a, HaystackStr, R>(
 //     pattern: &'a HaystackStr,
 //     pinyin_notations: PinyinNotation,
-//     f: impl FnOnce(&PinyinMatcher<'static, HaystackStr>) -> R,
+//     f: impl FnOnce(&IbMatcher<'static, HaystackStr>) -> R,
 // ) -> R
 // where
 //     HaystackStr: EncodedStr + ?Sized + Clone + 'static,
@@ -36,13 +36,13 @@ pub fn pinyin_data() -> &'static PinyinData {
 //     {
 //         pattern: <HaystackStr as ToOwned>::Owned,
 //         pinyin_notations: PinyinNotation,
-//         matcher: PinyinMatcher<'static, HaystackStr>,
+//         matcher: IbMatcher<'static, HaystackStr>,
 //     }
 
 //     let init = || MatcherCache {
 //         pattern: pattern.to_owned(),
 //         pinyin_notations,
-//         matcher: PinyinMatcher::builder(pattern)
+//         matcher: IbMatcher::builder(pattern)
 //             .pinyin_data(pinyin_data())
 //             .pinyin_notations(pinyin_notations)
 //             .build(),
@@ -66,7 +66,7 @@ where
 {
     pattern: <HaystackStr as ToOwned>::Owned,
     pinyin_notations: PinyinNotation,
-    matcher: PinyinMatcher<'static, HaystackStr>,
+    matcher: IbMatcher<'static, HaystackStr>,
 }
 
 fn get_or_init_matcher_cache<'a, HaystackStr>(
@@ -81,7 +81,7 @@ where
     let init = || MatcherCache {
         pattern: pattern.to_owned(),
         pinyin_notations,
-        matcher: PinyinMatcher::builder(pattern)
+        matcher: IbMatcher::builder(pattern)
             .pinyin_data(pinyin_data())
             .pinyin_notations(pinyin_notations)
             .build(),
