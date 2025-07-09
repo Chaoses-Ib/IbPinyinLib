@@ -216,17 +216,18 @@ where
         PinyinMatcher {
             ascii,
 
-            pattern,
-            _pattern_string: pattern_string,
-            _pattern_string_lowercase: pattern_string_lowercase,
-
             min_haystack_len: match HaystackStr::ELEMENT_LEN_BYTE {
                 1 => analyzer.min_haystack_len(),
+                _ if pattern.is_empty() => 0,
                 len => {
                     // TODO
                     len
                 }
             },
+
+            pattern,
+            _pattern_string: pattern_string,
+            _pattern_string_lowercase: pattern_string_lowercase,
 
             case_insensitive: self.case_insensitive,
             is_pattern_partial: self.is_pattern_partial,
