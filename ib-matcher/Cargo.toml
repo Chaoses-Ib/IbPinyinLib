@@ -40,7 +40,7 @@ regex = { version = "1.10.2", default-features = false, features = [
 widestring = { version = "1.0.2", optional = true }
 
 [dev-dependencies]
-criterion = "0.5.1"
+criterion = "0.6"
 
 [[bench]]
 name = "matcher"
