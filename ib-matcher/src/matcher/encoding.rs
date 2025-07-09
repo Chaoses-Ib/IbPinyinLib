@@ -3,7 +3,7 @@
 ///
 /// TODO: Extended ASCII code pages
 /// TODO: Index/SliceIndex
-pub trait EncodedStr {
+pub trait EncodedStr: Sealed {
     const ELEMENT_LEN_BYTE: usize;
 
     fn is_ascii(&self) -> bool;
@@ -15,6 +15,17 @@ pub trait EncodedStr {
         self.char_index_strs().count()
     }
 }
+
+mod private {
+    pub trait Sealed {}
+}
+use private::Sealed;
+
+impl Sealed for str {}
+#[cfg(feature = "encoding")]
+impl Sealed for widestring::U16Str {}
+#[cfg(feature = "encoding")]
+impl Sealed for widestring::U32Str {}
 
 impl EncodedStr for str {
     const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<u8>();
