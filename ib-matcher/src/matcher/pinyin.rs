@@ -18,6 +18,9 @@ pub struct PinyinMatchConfig<'a> {
 
     #[builder(default = false)]
     pub(crate) case_insensitive: bool,
+
+    #[builder(default = true)]
+    pub(crate) allow_partial_pattern: bool,
 }
 
 impl<'a> PinyinMatchConfig<'a> {

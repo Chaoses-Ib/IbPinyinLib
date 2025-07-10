@@ -12,6 +12,9 @@ pub struct RomajiMatchConfig<'a> {
 
     #[builder(default = false)]
     pub(crate) case_insensitive: bool,
+
+    #[builder(default = true)]
+    pub(crate) allow_partial_pattern: bool,
 }
 
 impl Default for RomajiMatchConfig<'_> {
@@ -19,6 +22,11 @@ impl Default for RomajiMatchConfig<'_> {
     fn default() -> Self {
         Self::builder().build()
     }
+}
+
+pub(crate) struct RomajiMatcher<'a> {
+    pub config: RomajiMatchConfig<'a>,
+    pub partial_pattern: bool,
 }
 
 #[cfg(test)]
@@ -42,5 +50,15 @@ mod tests {
             .romaji(romaji.clone())
             .build();
         assert_match!(matcher.find("この素晴らしい世界に祝福を"), Some((0, 30)));
+
+        let matcher = IbMatcher::builder("konosuba")
+            .romaji(romaji.clone())
+            .build();
+        assert_match!(matcher.find("この素晴らしい世界に祝福を"), None);
+        let matcher = IbMatcher::builder("konosuba")
+            .romaji(romaji.clone())
+            .is_pattern_partial(true)
+            .build();
+        assert_match!(matcher.find("この素晴らしい世界に祝福を"), Some((0, 21)));
     }
 }

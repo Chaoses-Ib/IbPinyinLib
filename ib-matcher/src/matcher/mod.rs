@@ -70,14 +70,14 @@ where
     min_haystack_len: usize,
 
     case_insensitive: bool,
-    is_pattern_partial: bool,
 
     pinyin: PinyinMatchConfig<'a>,
     pinyin_notations_prefix_group: Box<[PinyinNotation]>,
     pinyin_notations: Box<[PinyinNotation]>,
+    pinyin_partial_pattern: bool,
 
     #[cfg(feature = "romaji")]
-    romaji: Option<RomajiMatchConfig<'a>>,
+    romaji: Option<RomajiMatcher<'a>>,
 
     _haystack_str: PhantomData<HaystackStr>,
 }
@@ -238,14 +238,17 @@ where
             _pattern_string_lowercase: pattern_string_lowercase,
 
             case_insensitive,
-            is_pattern_partial,
 
+            pinyin_partial_pattern: is_pattern_partial && pinyin.allow_partial_pattern,
             pinyin,
             pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
             pinyin_notations: notations.into_boxed_slice(),
 
             #[cfg(feature = "romaji")]
-            romaji,
+            romaji: romaji.map(|config| RomajiMatcher {
+                partial_pattern: is_pattern_partial && config.allow_partial_pattern,
+                config,
+            }),
 
             _haystack_str: PhantomData,
         }
@@ -428,25 +431,24 @@ where
                 1,
                 "non-UTF-8 romaji match is not yet supported"
             );
-            if let Some(m) =
-                romaji
-                    .romanizer
-                    .romanize_and_try_for_each(haystack.as_bytes(), |len, romaji| {
-                        let match_len_next = matched_len + len;
-                        match self.sub_test_pinyin::<1>(
-                            pattern,
-                            unsafe { haystack.get_unchecked_from(len..) },
-                            match_len_next,
-                            romaji,
-                        ) {
-                            (true, Some(submatch)) => return Some(submatch),
-                            (true, None) => (),
-                            (false, None) => (),
-                            (false, Some(_)) => unreachable!(),
-                        }
-                        None
-                    })
-            {
+            if let Some(m) = romaji.config.romanizer.romanize_and_try_for_each(
+                haystack.as_bytes(),
+                |len, romaji| {
+                    let match_len_next = matched_len + len;
+                    match self.sub_test_pinyin::<1>(
+                        pattern,
+                        unsafe { haystack.get_unchecked_from(len..) },
+                        match_len_next,
+                        romaji,
+                    ) {
+                        (true, Some(submatch)) => return Some(submatch),
+                        (true, None) => (),
+                        (false, None) => (),
+                        (false, Some(_)) => unreachable!(),
+                    }
+                    None
+                },
+            ) {
                 return Some(m);
             }
         }
@@ -529,7 +531,11 @@ where
         let pattern_s = match match LANG {
             0 => self.pinyin.case_insensitive,
             #[cfg(feature = "romaji")]
-            1 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.case_insensitive,
+            1 => {
+                unsafe { self.romaji.as_ref().unwrap_unchecked() }
+                    .config
+                    .case_insensitive
+            }
             _ => unreachable!(),
         } {
             true => pattern[0].s_lowercase,
@@ -537,7 +543,13 @@ where
         };
 
         if pattern_s.len() < pinyin.len() {
-            if self.is_pattern_partial && pinyin.starts_with(pattern_s) {
+            if match LANG {
+                0 => self.pinyin_partial_pattern,
+                #[cfg(feature = "romaji")]
+                1 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.partial_pattern,
+                _ => unreachable!(),
+            } && pinyin.starts_with(pattern_s)
+            {
                 return (true, Some(SubMatch::new(matched_len_next, true)));
             }
         } else if pattern_s.starts_with(pinyin) {
