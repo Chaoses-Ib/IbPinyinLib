@@ -6,7 +6,7 @@ use ib_romaji::HepburnRomanizer;
 #[derive(Builder, Clone)]
 pub struct RomajiMatchConfig<'a> {
     /// Default: `new()` on [`RomajiMatchConfigBuilder::build()`]
-    #[builder(default = Cow::Owned(HepburnRomanizer::new()))]
+    #[builder(default = Cow::Owned(HepburnRomanizer::default()))]
     #[builder(with = |romanizer: &'a HepburnRomanizer| Cow::Borrowed(romanizer))]
     pub(crate) romanizer: Cow<'a, HepburnRomanizer>,
 
@@ -29,14 +29,18 @@ mod tests {
 
     #[test]
     fn romaji() {
-        let matcher = IbMatcher::builder("ohayo")
-            .romaji(RomajiMatchConfig::default())
-            .build();
+        let romanizer = Default::default();
+        let romaji = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+
+        let matcher = IbMatcher::builder("ohayo").romaji(romaji.clone()).build();
         assert_match!(matcher.find("おはよう"), Some((0, 9)));
 
-        let matcher = IbMatcher::builder("jojo")
-            .romaji(RomajiMatchConfig::default())
-            .build();
+        let matcher = IbMatcher::builder("jojo").romaji(romaji.clone()).build();
         assert_match!(matcher.find("おはよジョジョ"), Some((9, 12)));
+
+        let matcher = IbMatcher::builder("konosubarashiisekaini")
+            .romaji(romaji.clone())
+            .build();
+        assert_match!(matcher.find("この素晴らしい世界に祝福を"), Some((0, 30)));
     }
 }

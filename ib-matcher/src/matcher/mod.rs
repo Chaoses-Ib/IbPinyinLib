@@ -428,19 +428,26 @@ where
                 1,
                 "non-UTF-8 romaji match is not yet supported"
             );
-            if let Some((len, romaji)) = romaji.romanizer.romanize(haystack.as_bytes()) {
-                let match_len_next = matched_len + len;
-                match self.sub_test_pinyin::<1>(
-                    pattern,
-                    unsafe { haystack.get_unchecked_from(len..) },
-                    match_len_next,
-                    romaji,
-                ) {
-                    (true, Some(submatch)) => return Some(submatch),
-                    (true, None) => (),
-                    (false, None) => (),
-                    (false, Some(_)) => unreachable!(),
-                }
+            if let Some(m) =
+                romaji
+                    .romanizer
+                    .romanize_and_try_for_each(haystack.as_bytes(), |len, romaji| {
+                        let match_len_next = matched_len + len;
+                        match self.sub_test_pinyin::<1>(
+                            pattern,
+                            unsafe { haystack.get_unchecked_from(len..) },
+                            match_len_next,
+                            romaji,
+                        ) {
+                            (true, Some(submatch)) => return Some(submatch),
+                            (true, None) => (),
+                            (false, None) => (),
+                            (false, Some(_)) => unreachable!(),
+                        }
+                        None
+                    })
+            {
+                return Some(m);
             }
         }
 

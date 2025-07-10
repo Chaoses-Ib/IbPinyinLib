@@ -1,49 +1,308 @@
 use aho_corasick::{AhoCorasick, Anchored, Input, MatchKind, StartKind};
+use bon::bon;
 
-mod kana;
+mod data;
 
 /// https://en.wikipedia.org/wiki/Hepburn_romanization
-///
-/// TODO: Kanji
 #[derive(Clone)]
 pub struct HepburnRomanizer {
     ac: AhoCorasick,
+    kanji: bool,
 }
 
+#[bon]
 impl HepburnRomanizer {
-    pub fn new() -> Self {
-        Self {
-            ac: AhoCorasick::builder()
-                .start_kind(StartKind::Anchored)
-                .match_kind(MatchKind::LeftmostLongest)
-                .build(kana::HEPBURN_KANAS)
-                .unwrap(),
+    /// [`HepburnRomanizer::default()`]
+    #[builder]
+    pub fn new(
+        #[builder(default = false)] kana: bool,
+        #[builder(default = false)] kanji: bool,
+        #[builder(default = false)] word: bool,
+    ) -> Self {
+        let mut ac = AhoCorasick::builder();
+        ac.start_kind(StartKind::Anchored)
+            .match_kind(MatchKind::LeftmostLongest);
+        let ac = match (kana, word) {
+            (true, true) => ac.build(data::kana::HEPBURN_KANAS.iter().chain(data::WORDS)),
+            (true, false) => ac.build(data::kana::HEPBURN_KANAS),
+            (false, true) => ac.build(data::WORDS),
+            (false, false) => ac.build::<_, &str>([]),
         }
+        .unwrap();
+        Self { ac, kanji }
     }
 
     /// ```
     /// use ib_romaji::HepburnRomanizer;
     ///
-    /// assert_eq!(HepburnRomanizer::new().romanize("あ"), Some((3, "a")));
+    /// assert_eq!(HepburnRomanizer::builder().kana(true).build().romanize_kana("あ"), Some((3, "a")));
     /// ```
     /// TODO: Iter
-    pub fn romanize<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, &'static str)> {
+    pub fn romanize_kana<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, &'static str)> {
         let m = self.ac.find(Input::new(s).anchored(Anchored::Yes))?;
-        Some((m.len(), kana::HEPBURN_ROMAJIS[m.pattern()]))
+        let pattern = m.pattern().as_usize();
+        data::kana::HEPBURN_ROMAJIS
+            .get(pattern)
+            .map(|&romaji| (m.len(), romaji))
+    }
+
+    pub fn romanize_kana_str<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, String)> {
+        let s = s.as_ref();
+        let mut len = 0;
+        let mut buf = String::new();
+        while let Some((l, romaji)) = self.romanize_kana(&s[len..]).or_else(|| {
+            if s[len..].starts_with("、".as_bytes()) {
+                Some((3, "、"))
+            } else {
+                None
+            }
+        }) {
+            len += l;
+            buf.push_str(romaji);
+            if len >= s.len() {
+                return Some((len, buf));
+            }
+        }
+        if len == 0 { None } else { Some((len, buf)) }
+    }
+
+    pub fn romanize_kana_str_all<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<String> {
+        let s = s.as_ref();
+        match self.romanize_kana_str(s) {
+            Some((len, buf)) if len == s.len() => Some(buf),
+            _ => None,
+        }
+    }
+
+    pub fn romanize_and_try_for_each<S: ?Sized + AsRef<[u8]>, T>(
+        &self,
+        s: &S,
+        mut f: impl FnMut(usize, &'static str) -> Option<T>,
+    ) -> Option<T> {
+        let s = s.as_ref();
+
+        if let Some(m) = self.ac.find(Input::new(s).anchored(Anchored::Yes)) {
+            let pattern = m.pattern().as_usize();
+            if pattern < data::kana::HEPBURN_ROMAJIS.len() {
+                let romaji = data::kana::HEPBURN_ROMAJIS[pattern];
+                if let Some(result) = f(m.len(), romaji) {
+                    return Some(result);
+                }
+            } else if pattern < data::kana::HEPBURN_ROMAJIS.len() + data::WORD_ROMAJIS.len() {
+                for romaji in data::WORD_ROMAJIS[pattern - data::kana::HEPBURN_ROMAJIS.len()] {
+                    if let Some(result) = f(m.len(), romaji) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+
+        if self.kanji {
+            let s = unsafe { str::from_utf8_unchecked(s) };
+            if let Some(kanji) = s.chars().next() {
+                for romaji in data::kanji_romajis(kanji) {
+                    // TODO: Always 3?
+                    if let Some(result) = f(kanji.len_utf8(), romaji) {
+                        return Some(result);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn romanize_vec<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Vec<(usize, &'static str)> {
+        let mut results = Vec::new();
+        self.romanize_and_try_for_each(s, |len, romaji| {
+            results.push((len, romaji));
+            None::<()>
+        });
+        results
+    }
+}
+
+impl Default for HepburnRomanizer {
+    fn default() -> Self {
+        Self::builder().kana(true).kanji(true).word(true).build()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{fs, io::Write};
+
+    use indexmap::IndexSet;
+
     use super::*;
 
     #[test]
-    fn hepburn() {
-        let data = HepburnRomanizer::new();
-        assert_eq!(data.romanize("は"), Some((3, "ha")));
-        assert_eq!(data.romanize("ハハハ"), Some((3, "ha")));
-        assert_eq!(data.romanize("ジョジョ"), Some((6, "jo")));
-        assert_eq!(data.romanize("って"), Some((6, "tte")));
-        assert_eq!(data.romanize("日は"), None);
+    fn kana() {
+        let data = HepburnRomanizer::builder().kana(true).build();
+        assert_eq!(data.romanize_kana("は"), Some((3, "ha")));
+        assert_eq!(data.romanize_kana("ハハハ"), Some((3, "ha")));
+        assert_eq!(data.romanize_kana("ジョジョ"), Some((6, "jo")));
+        assert_eq!(data.romanize_kana("って"), Some((6, "tte")));
+        assert_eq!(data.romanize_kana("日は"), None);
+    }
+
+    #[test]
+    fn kana_str() {
+        let data = HepburnRomanizer::builder().kana(true).build();
+        assert_eq!(data.romanize_kana_str("は"), Some((3, "ha".into())));
+        assert_eq!(data.romanize_kana_str("ハハハ"), Some((9, "hahaha".into())));
+        assert_eq!(
+            data.romanize_kana_str("ジョジョ"),
+            Some((12, "jojo".into()))
+        );
+        assert_eq!(data.romanize_kana_str("って"), Some((6, "tte".into())));
+        assert_eq!(data.romanize_kana_str("日は"), None);
+    }
+
+    #[ignore]
+    #[test]
+    fn codegen_kanji() {
+        let romanizer = HepburnRomanizer::builder().kana(true).build();
+
+        let mut dup_count = 0;
+
+        let kanjidic = fs::read_to_string("data/kanjidic.csv").unwrap();
+        let mut out_kanjis = fs::File::create("src/data/kanjis.rs").unwrap();
+        writeln!(out_kanjis, "match kanji {{").unwrap();
+        for (i, line) in kanjidic.lines().enumerate() {
+            let (kanji, kanas) = match line.split_once('\t') {
+                Some(v) => v,
+                None => continue,
+            };
+
+            write!(out_kanjis, "'{kanji}'=>").unwrap();
+
+            let kanas_count = kanas.split('\t').count();
+            let kanas_set: IndexSet<String> = kanas
+                .split('\t')
+                .map(|kana| match romanizer.romanize_kana_str_all(kana) {
+                    Some(romaji) => format!("\"{}\"", romaji),
+                    None => {
+                        println!("Failed to romanize kana: {kana}");
+                        kana.into()
+                    }
+                })
+                .collect();
+            if kanas_set.len() != kanas_count {
+                // println!("Duplicated romajis: {kanji}\t{kanas}");
+                dup_count += 1;
+            }
+
+            write!(
+                out_kanjis,
+                "&[{}],",
+                kanas_set.into_iter().collect::<Vec<_>>().join(",")
+            )
+            .unwrap();
+
+            if (i + 1) % 8 == 0 {
+                out_kanjis.write_all(b"\n").unwrap();
+            }
+        }
+        write!(out_kanjis, "_ => &[]\n}}").unwrap();
+
+        println!("Kanjis with duplicated romajis: {dup_count}");
+    }
+
+    #[ignore]
+    #[test]
+    fn codegen_word() {
+        let romanizer = HepburnRomanizer::builder().kana(true).build();
+
+        let mut dup_count = 0;
+
+        let jmdict = fs::read_to_string("data/jmdict.csv").unwrap();
+        let mut out_kanjis = fs::File::create("src/data/words.rs").unwrap();
+        let mut out_kanas = fs::File::create("src/data/word_kanas.rs").unwrap();
+        writeln!(out_kanjis, "&[").unwrap();
+        writeln!(out_kanas, "&[").unwrap();
+        for (i, line) in jmdict.lines().enumerate() {
+            let (kanji, kanas) = match line.split_once('\t') {
+                Some(v) => v,
+                None => continue,
+            };
+
+            write!(out_kanjis, "\"{kanji}\",").unwrap();
+
+            let kanas_count = kanas.split('\t').count();
+            let kanas_set: IndexSet<String> = kanas
+                .split('\t')
+                .map(|kana| match romanizer.romanize_kana_str_all(kana) {
+                    Some(romaji) => format!("\"{}\"", romaji),
+                    None => {
+                        println!("Failed to romanize kana: {kana}");
+                        kana.into()
+                    }
+                })
+                .collect();
+            if kanas_set.len() != kanas_count {
+                // println!("Duplicated romajis: {kanji}\t{kanas}");
+                dup_count += 1;
+            }
+
+            write!(
+                out_kanas,
+                "&[{}],",
+                kanas_set.into_iter().collect::<Vec<_>>().join(",")
+            )
+            .unwrap();
+
+            if (i + 1) % 8 == 0 {
+                out_kanjis.write_all(b"\n").unwrap();
+                out_kanas.write_all(b"\n").unwrap();
+            }
+        }
+        write!(out_kanjis, "\n]").unwrap();
+        write!(out_kanas, "\n]").unwrap();
+
+        println!("Words with duplicated romajis: {dup_count}");
+    }
+
+    #[test]
+    fn kanji() {
+        assert_eq!(
+            data::kanji_romajis('日'),
+            [
+                "kusa", "chi", "nitsu", "jitsu", "nichi", "su", "bi", "tachi", "hi", "ni", "ku",
+                "nchi", "kou", "ka", "iru", "he", "a", "aki"
+            ]
+        );
+
+        let data = HepburnRomanizer::builder().kana(true).kanji(true).build();
+        assert_eq!(data.romanize_vec("は"), vec![(3, "ha")]);
+        assert_eq!(data.romanize_vec("ハハハ"), vec![(3, "ha")]);
+        assert_eq!(data.romanize_vec("ジョジョ"), vec![(6, "jo")]);
+        assert_eq!(data.romanize_vec("って"), vec![(6, "tte")]);
+        assert_eq!(
+            data.romanize_vec("日は"),
+            [
+                "kusa", "chi", "nitsu", "jitsu", "nichi", "su", "bi", "tachi", "hi", "ni", "ku",
+                "nchi", "kou", "ka", "iru", "he", "a", "aki"
+            ]
+            .map(|romaji| (3, romaji))
+        );
+        assert_eq!(
+            data.romanize_vec("今日"),
+            vec![(3, "kon"), (3, "na"), (3, "kin"), (3, "ima")]
+        );
+    }
+
+    #[test]
+    fn word() {
+        let data = HepburnRomanizer::builder().kana(true).word(true).build();
+        assert_eq!(data.romanize_vec("は"), vec![(3, "ha")]);
+        assert_eq!(data.romanize_vec("ハハハ"), vec![(3, "ha")]);
+        assert_eq!(data.romanize_vec("ジョジョ"), vec![(6, "jo")]);
+        assert_eq!(data.romanize_vec("って"), vec![(6, "tte")]);
+        assert_eq!(data.romanize_vec("日は"), vec![]);
+        assert_eq!(
+            data.romanize_vec("今日"),
+            vec![(6, "kyou"), (6, "konnichi"), (6, "konchi"), (6, "konjitsu")]
+        );
     }
 }

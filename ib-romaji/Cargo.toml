@@ -9,6 +9,7 @@ license.workspace = true
 
 [dependencies]
 aho-corasick = "1"
+bon = "3"
 
 [[bench]]
 name = "romaji"
@@ -16,3 +17,4 @@ harness = false
 
 [dev-dependencies]
 criterion = "0.6"
+indexmap = "2"
