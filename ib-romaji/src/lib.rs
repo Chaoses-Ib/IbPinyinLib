@@ -112,6 +112,7 @@ impl HepburnRomanizer {
                     return Some(result);
                 }
             } else if pattern < data::kana::HEPBURN_ROMAJIS.len() + data::WORD_ROMAJIS.len() {
+                // TODO: Binary search
                 for romaji in data::WORD_ROMAJIS[pattern - data::kana::HEPBURN_ROMAJIS.len()] {
                     if let Some(result) = f(m.len(), romaji) {
                         return Some(result);
@@ -123,6 +124,7 @@ impl HepburnRomanizer {
         if self.kanji {
             let s = unsafe { str::from_utf8_unchecked(s) };
             if let Some(kanji) = s.chars().next() {
+                // TODO: Binary search
                 for romaji in data::kanji_romajis(kanji) {
                     // TODO: Always 3?
                     if let Some(result) = f(kanji.len_utf8(), romaji) {
@@ -201,7 +203,7 @@ mod tests {
             write!(out_kanjis, "'{kanji}'=>").unwrap();
 
             let kanas_count = kanas.split('\t').count();
-            let kanas_set: IndexSet<String> = kanas
+            let mut kanas_set: IndexSet<String> = kanas
                 .split('\t')
                 .map(|kana| match romanizer.romanize_kana_str_all(kana) {
                     Some(romaji) => format!("\"{}\"", romaji),
@@ -211,6 +213,7 @@ mod tests {
                     }
                 })
                 .collect();
+            kanas_set.sort_unstable();
             if kanas_set.len() != kanas_count {
                 // println!("Duplicated romajis: {kanji}\t{kanas}");
                 dup_count += 1;
@@ -260,7 +263,7 @@ mod tests {
             }
 
             let kanas_count = kanas.split('\t').count();
-            let kanas_set: IndexSet<String> = kanas
+            let mut kanas_set: IndexSet<String> = kanas
                 .split('\t')
                 .map(|kana| match romanizer.romanize_kana_str_all(kana) {
                     Some(romaji) => format!("\"{}\"", romaji),
@@ -270,6 +273,7 @@ mod tests {
                     }
                 })
                 .collect();
+            kanas_set.sort_unstable();
             if kanas_set.len() != kanas_count {
                 // println!("Duplicated romajis: {kanji}\t{kanas}");
                 dup_count += 1;
@@ -300,8 +304,8 @@ mod tests {
         assert_eq!(
             data::kanji_romajis('日'),
             [
-                "kusa", "chi", "nitsu", "jitsu", "nichi", "su", "bi", "tachi", "hi", "ni", "ku",
-                "nchi", "kou", "ka", "iru", "he", "a", "aki"
+                "a", "aki", "bi", "chi", "he", "hi", "iru", "jitsu", "ka", "kou", "ku", "kusa",
+                "nchi", "ni", "nichi", "nitsu", "su", "tachi"
             ]
         );
 
@@ -313,14 +317,14 @@ mod tests {
         assert_eq!(
             data.romanize_vec("日は"),
             [
-                "kusa", "chi", "nitsu", "jitsu", "nichi", "su", "bi", "tachi", "hi", "ni", "ku",
-                "nchi", "kou", "ka", "iru", "he", "a", "aki"
+                "a", "aki", "bi", "chi", "he", "hi", "iru", "jitsu", "ka", "kou", "ku", "kusa",
+                "nchi", "ni", "nichi", "nitsu", "su", "tachi"
             ]
             .map(|romaji| (3, romaji))
         );
         assert_eq!(
             data.romanize_vec("今日"),
-            vec![(3, "kon"), (3, "na"), (3, "kin"), (3, "ima")]
+            vec![(3, "ima"), (3, "kin"), (3, "kon"), (3, "na")]
         );
     }
 
@@ -334,7 +338,7 @@ mod tests {
         assert_eq!(data.romanize_vec("日は"), vec![]);
         assert_eq!(
             data.romanize_vec("今日"),
-            vec![(6, "kyou"), (6, "konnichi"), (6, "konchi"), (6, "konjitsu")]
+            vec![(6, "konchi"), (6, "konjitsu"), (6, "konnichi"), (6, "kyou")]
         );
     }
 }
