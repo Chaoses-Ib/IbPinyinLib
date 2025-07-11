@@ -15,6 +15,7 @@ license.workspace = true
 [features]
 default = ["perf"]
 
+pinyin = ["dep:arraystring", "dep:bitflags"]
 romaji = ["dep:ib-romaji"]
 
 perf = ["unicode-case-map"]
@@ -25,13 +26,13 @@ unicode-case-map = []
 regex = ["dep:regex"]
 
 inmut-data = []
-minimal = ["inmut-data"]
+minimal = ["inmut-data", "pinyin"]
 encoding = ["dep:widestring"]
 
 [dependencies]
 aho-corasick = "1"
-arraystring = "0.3.0"
-bitflags = "2.4.1"
+arraystring = { version = "0.3", optional = true }
+bitflags = { version = "2", optional = true }
 bon = "3"
 ib-romaji = { version = "0.1", optional = true, path = "../ib-romaji" }
 itertools = "0.14"

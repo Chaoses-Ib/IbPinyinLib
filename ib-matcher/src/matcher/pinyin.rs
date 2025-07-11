@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use bon::Builder;
+use bon::{bon, builder, Builder};
 
 use crate::pinyin::{PinyinData, PinyinNotation};
 
@@ -27,5 +27,109 @@ impl<'a> PinyinMatchConfig<'a> {
     /// Use [`PinyinMatchConfigBuilder`] for more options.
     pub fn notations(notations: PinyinNotation) -> Self {
         Self::builder(notations).build()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PinyinAnalyzeResult {
+    /// - If [`PinyinNotation::Ascii`] and [`PinyinNotation::AsciiFirstLetter`] are both enabled, [`PinyinNotation::Ascii`] is only considered used if the pattern uses any non-single-letter pinyin from [`PinyinNotation::Ascii`].
+    pub used_notations: PinyinNotation,
+}
+
+impl Default for PinyinAnalyzeResult {
+    fn default() -> Self {
+        Self {
+            used_notations: PinyinNotation::empty(),
+        }
+    }
+}
+
+pub(crate) struct PinyinMatcher<'a> {
+    pub config: PinyinMatchConfig<'a>,
+    pub notations_prefix_group: Box<[PinyinNotation]>,
+    pub notations: Box<[PinyinNotation]>,
+    pub partial_pattern: bool,
+}
+
+#[bon]
+impl<'a> PinyinMatcher<'a> {
+    pub const ORDERED_PINYIN_NOTATIONS: [PinyinNotation; 10] = [
+        PinyinNotation::AsciiFirstLetter,
+        PinyinNotation::Ascii,
+        PinyinNotation::AsciiTone,
+        PinyinNotation::Unicode,
+        PinyinNotation::DiletterAbc,
+        PinyinNotation::DiletterJiajia,
+        PinyinNotation::DiletterMicrosoft,
+        PinyinNotation::DiletterThunisoft,
+        PinyinNotation::DiletterXiaohe,
+        PinyinNotation::DiletterZrm,
+    ];
+
+    #[builder]
+    pub fn new(
+        #[builder(start_fn)] config: PinyinMatchConfig<'a>,
+        analyze: PinyinAnalyzeResult,
+        is_pattern_partial: bool,
+    ) -> Self {
+        let used_notations = analyze.used_notations;
+
+        let (notations_prefix_group, unprefixable_notations) = match used_notations
+            .intersection(
+                PinyinNotation::AsciiFirstLetter
+                    | PinyinNotation::Ascii
+                    | PinyinNotation::AsciiTone,
+            )
+            .bits()
+            .count_ones()
+        {
+            count if count > 1 => {
+                let mut notations = Vec::with_capacity(count as usize);
+                if used_notations.contains(PinyinNotation::AsciiFirstLetter) {
+                    notations.push(PinyinNotation::AsciiFirstLetter);
+                }
+                if used_notations.contains(PinyinNotation::Ascii) {
+                    notations.push(PinyinNotation::Ascii);
+                }
+                if used_notations.contains(PinyinNotation::AsciiTone) {
+                    notations.push(PinyinNotation::AsciiTone);
+                }
+                (
+                    notations,
+                    used_notations.difference(
+                        PinyinNotation::AsciiFirstLetter
+                            | PinyinNotation::Ascii
+                            | PinyinNotation::AsciiTone,
+                    ),
+                )
+            }
+            _ => (Vec::new(), used_notations),
+        };
+        let mut notations = Vec::with_capacity(unprefixable_notations.bits().count_ones() as usize);
+        for notation in Self::ORDERED_PINYIN_NOTATIONS {
+            if unprefixable_notations.contains(notation) {
+                notations.push(notation);
+            }
+        }
+
+        Self {
+            partial_pattern: is_pattern_partial && config.allow_partial_pattern,
+            notations_prefix_group: notations_prefix_group.into_boxed_slice(),
+            notations: notations.into_boxed_slice(),
+            config,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordered_notations() {
+        assert_eq!(
+            PinyinNotation::all().iter().count(),
+            PinyinMatcher::ORDERED_PINYIN_NOTATIONS.len()
+        )
     }
 }

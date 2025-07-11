@@ -3,23 +3,23 @@ use std::marker::PhantomData;
 use bon::bon;
 
 use crate::{
-    pinyin::PinyinNotation,
+    matcher::{encoding::EncodedStr, matches::SubMatch},
     unicode::{CharToMonoLowercase, StrToMonoLowercase},
 };
 
-pub mod encoding;
-use encoding::EncodedStr;
-
 pub mod analyze;
+pub mod encoding;
 mod matches;
-use matches::SubMatch;
-mod pinyin;
 #[cfg(feature = "regex")]
 mod regex_utils;
+
+#[cfg(feature = "pinyin")]
+mod pinyin;
 #[cfg(feature = "romaji")]
 mod romaji;
 
 pub use matches::Match;
+#[cfg(feature = "pinyin")]
 pub use pinyin::*;
 #[cfg(feature = "romaji")]
 pub use romaji::*;
@@ -71,11 +71,8 @@ where
 
     case_insensitive: bool,
 
-    pinyin: PinyinMatchConfig<'a>,
-    pinyin_notations_prefix_group: Box<[PinyinNotation]>,
-    pinyin_notations: Box<[PinyinNotation]>,
-    pinyin_partial_pattern: bool,
-
+    #[cfg(feature = "pinyin")]
+    pinyin: Option<PinyinMatcher<'a>>,
     #[cfg(feature = "romaji")]
     romaji: Option<RomajiMatcher<'a>>,
 
@@ -87,19 +84,6 @@ impl<'a, HaystackStr> IbMatcher<'a, HaystackStr>
 where
     HaystackStr: EncodedStr + ?Sized,
 {
-    const ORDERED_PINYIN_NOTATIONS: [PinyinNotation; 10] = [
-        PinyinNotation::AsciiFirstLetter,
-        PinyinNotation::Ascii,
-        PinyinNotation::AsciiTone,
-        PinyinNotation::Unicode,
-        PinyinNotation::DiletterAbc,
-        PinyinNotation::DiletterJiajia,
-        PinyinNotation::DiletterMicrosoft,
-        PinyinNotation::DiletterThunisoft,
-        PinyinNotation::DiletterXiaohe,
-        PinyinNotation::DiletterZrm,
-    ];
-
     #[builder]
     pub fn new(
         #[builder(start_fn)] pattern: &HaystackStr,
@@ -115,19 +99,11 @@ where
 
         #[builder(default = false)] is_pattern_partial: bool,
 
-        pinyin: Option<PinyinMatchConfig<'a>>,
+        #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
     ) -> Self {
         let pattern_bytes = pattern.as_bytes().to_owned();
         let pattern: String = pattern.char_index_strs().map(|(_, c, _)| c).collect();
-
-        let pinyin =
-            pinyin.unwrap_or_else(|| PinyinMatchConfig::notations(PinyinNotation::empty()));
-        // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
-        #[cfg(not(feature = "inmut-data"))]
-        assert!(pinyin.data.inited_notations().contains(pinyin.notations));
-        #[cfg(feature = "inmut-data")]
-        pinyin.data.init_notations(pinyin.notations);
 
         let pattern_string = pattern;
         let pattern_s: &str = pattern_string.as_str();
@@ -136,56 +112,6 @@ where
         let pattern_string_lowercase = pattern_string.to_mono_lowercase();
         let pattern_s_lowercase: &str = pattern_string_lowercase.as_str();
         let pattern_s_lowercase: &'static str = unsafe { std::mem::transmute(pattern_s_lowercase) };
-
-        let mut analyzer = analyze::PatternAnalyzer::new(pattern_s_lowercase, &pinyin);
-        analyzer.analyze(analyze_config.unwrap_or_else(|| {
-            if analyze {
-                analyze::PatternAnalyzeConfig::standard()
-            } else {
-                analyze::PatternAnalyzeConfig::default()
-            }
-        }));
-        let pinyin_notations = analyzer.pinyin_used_notations();
-        // TODO: Optimize if only AsciiFirstLetter is used
-
-        let (notations_prefix_group, unprefixable_pinyin_notations) = match pinyin_notations
-            .intersection(
-                PinyinNotation::AsciiFirstLetter
-                    | PinyinNotation::Ascii
-                    | PinyinNotation::AsciiTone,
-            )
-            .bits()
-            .count_ones()
-        {
-            count if count > 1 => {
-                let mut notations = Vec::with_capacity(count as usize);
-                if pinyin_notations.contains(PinyinNotation::AsciiFirstLetter) {
-                    notations.push(PinyinNotation::AsciiFirstLetter);
-                }
-                if pinyin_notations.contains(PinyinNotation::Ascii) {
-                    notations.push(PinyinNotation::Ascii);
-                }
-                if pinyin_notations.contains(PinyinNotation::AsciiTone) {
-                    notations.push(PinyinNotation::AsciiTone);
-                }
-                (
-                    notations,
-                    pinyin_notations.difference(
-                        PinyinNotation::AsciiFirstLetter
-                            | PinyinNotation::Ascii
-                            | PinyinNotation::AsciiTone,
-                    ),
-                )
-            }
-            _ => (Vec::new(), pinyin_notations),
-        };
-        let mut notations =
-            Vec::with_capacity(unprefixable_pinyin_notations.bits().count_ones() as usize);
-        for notation in Self::ORDERED_PINYIN_NOTATIONS {
-            if unprefixable_pinyin_notations.contains(notation) {
-                notations.push(notation);
-            }
-        }
 
         let pattern = pattern_string
             .char_indices()
@@ -201,6 +127,50 @@ where
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
+
+        #[cfg(feature = "pinyin")]
+        if let Some(pinyin) = &pinyin {
+            // TODO: If pattern does not contain any pinyin letter, then pinyin_data is not needed.
+            #[cfg(not(feature = "inmut-data"))]
+            assert!(pinyin.data.inited_notations().contains(pinyin.notations));
+            #[cfg(feature = "inmut-data")]
+            pinyin.data.init_notations(pinyin.notations);
+        }
+
+        let analyzer = analyze::PatternAnalyzer::builder(pattern_s_lowercase);
+        #[cfg(feature = "pinyin")]
+        let analyzer = analyzer.maybe_pinyin(pinyin.as_ref());
+        let mut analyzer = analyzer.build();
+        analyzer.analyze(analyze_config.unwrap_or_else(|| {
+            if analyze {
+                analyze::PatternAnalyzeConfig::standard()
+            } else {
+                analyze::PatternAnalyzeConfig::default()
+            }
+        }));
+
+        let min_haystack_len = match HaystackStr::ELEMENT_LEN_BYTE {
+            1 => analyzer.min_haystack_len(),
+            _ if pattern.is_empty() => 0,
+            len => {
+                // TODO
+                len
+            }
+        };
+
+        #[cfg(feature = "pinyin")]
+        let pinyin_analyze = analyzer.pinyin().clone();
+        // TODO: Optimize if only AsciiFirstLetter is used
+
+        drop(analyzer);
+
+        #[cfg(feature = "pinyin")]
+        let pinyin = pinyin.map(|config| {
+            PinyinMatcher::builder(config)
+                .analyze(pinyin_analyze)
+                .is_pattern_partial(is_pattern_partial)
+                .build()
+        });
 
         // ASCII-only haystack optimization
         let ascii = match pattern_bytes.is_ascii() {
@@ -224,14 +194,7 @@ where
         Self {
             ascii,
 
-            min_haystack_len: match HaystackStr::ELEMENT_LEN_BYTE {
-                1 => analyzer.min_haystack_len(),
-                _ if pattern.is_empty() => 0,
-                len => {
-                    // TODO
-                    len
-                }
-            },
+            min_haystack_len,
 
             pattern,
             _pattern_string: pattern_string,
@@ -239,10 +202,8 @@ where
 
             case_insensitive,
 
-            pinyin_partial_pattern: is_pattern_partial && pinyin.allow_partial_pattern,
+            #[cfg(feature = "pinyin")]
             pinyin,
-            pinyin_notations_prefix_group: notations_prefix_group.into_boxed_slice(),
-            pinyin_notations: notations.into_boxed_slice(),
 
             #[cfg(feature = "romaji")]
             romaji: romaji.map(|config| RomajiMatcher {
@@ -414,6 +375,7 @@ where
         }
 
         // Fast fail optimization
+        #[cfg(any(feature = "pinyin", feature = "romaji"))]
         if haystack_c.is_ascii() {
             return None;
         }
@@ -453,62 +415,72 @@ where
             }
         }
 
-        // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
-        //     for &notation in self.pinyin_notations_prefix_group.iter() {
-        //         let pinyin = pinyin.notation(notation).unwrap();
-        //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
-        //             (true, Some(submatch)) => return Some(submatch),
-        //             (true, None) => (),
-        //             (false, None) => break,
-        //             (false, Some(_)) => unreachable!(),
-        //         }
-        //     }
-        //     for &notation in self.pinyin_notations.iter() {
-        //         let pinyin = pinyin.notation(notation).unwrap();
-        //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
-        //             (true, Some(submatch)) => return Some(submatch),
-        //             (true, None) => (),
-        //             (false, None) => (),
-        //             (false, Some(_)) => unreachable!(),
-        //         }
-        //     }
-        // }
-        // None
+        #[cfg(feature = "pinyin")]
+        if let Some(matcher) = &self.pinyin {
+            // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
+            //     for &notation in self.pinyin.notations_prefix_group.iter() {
+            //         let pinyin = pinyin.notation(notation).unwrap();
+            //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+            //             (true, Some(submatch)) => return Some(submatch),
+            //             (true, None) => (),
+            //             (false, None) => break,
+            //             (false, Some(_)) => unreachable!(),
+            //         }
+            //     }
+            //     for &notation in self.pinyin.notations.iter() {
+            //         let pinyin = pinyin.notation(notation).unwrap();
+            //         match self.sub_test_pinyin(pattern, haystack_next, matched_len, pinyin) {
+            //             (true, Some(submatch)) => return Some(submatch),
+            //             (true, None) => (),
+            //             (false, None) => (),
+            //             (false, Some(_)) => unreachable!(),
+            //         }
+            //     }
+            // }
+            // None
 
-        // Reduce total time by 45~65% compared to using `get_pinyins()`
-        self.pinyin
-            .data
-            .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
-                for &notation in self.pinyin_notations_prefix_group.iter() {
-                    let pinyin = pinyin.notation(notation).unwrap();
-                    match self.sub_test_pinyin::<0>(
-                        pattern,
-                        haystack_next,
-                        matched_len_next,
-                        pinyin,
-                    ) {
-                        (true, Some(submatch)) => return Some(submatch),
-                        (true, None) => (),
-                        (false, None) => break,
-                        (false, Some(_)) => unreachable!(),
-                    }
-                }
-                for &notation in self.pinyin_notations.iter() {
-                    let pinyin = pinyin.notation(notation).unwrap();
-                    match self.sub_test_pinyin::<0>(
-                        pattern,
-                        haystack_next,
-                        matched_len_next,
-                        pinyin,
-                    ) {
-                        (true, Some(submatch)) => return Some(submatch),
-                        (true, None) => (),
-                        (false, None) => (),
-                        (false, Some(_)) => unreachable!(),
-                    }
-                }
-                None
-            })
+            // Reduce total time by 45~65% compared to using `get_pinyins()`
+            if let Some(m) =
+                matcher
+                    .config
+                    .data
+                    .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
+                        for &notation in matcher.notations_prefix_group.iter() {
+                            let pinyin = pinyin.notation(notation).unwrap();
+                            match self.sub_test_pinyin::<0>(
+                                pattern,
+                                haystack_next,
+                                matched_len_next,
+                                pinyin,
+                            ) {
+                                (true, Some(submatch)) => return Some(submatch),
+                                (true, None) => (),
+                                (false, None) => break,
+                                (false, Some(_)) => unreachable!(),
+                            }
+                        }
+                        for &notation in matcher.notations.iter() {
+                            let pinyin = pinyin.notation(notation).unwrap();
+                            match self.sub_test_pinyin::<0>(
+                                pattern,
+                                haystack_next,
+                                matched_len_next,
+                                pinyin,
+                            ) {
+                                (true, Some(submatch)) => return Some(submatch),
+                                (true, None) => (),
+                                (false, None) => (),
+                                (false, Some(_)) => unreachable!(),
+                            }
+                        }
+                        None
+                    })
+            {
+                return Some(m);
+            }
+        }
+
+        None
     }
 
     /// ## Arguments
@@ -529,7 +501,12 @@ where
         debug_assert_eq!(pinyin, pinyin.to_lowercase());
 
         let pattern_s = match match LANG {
-            0 => self.pinyin.case_insensitive,
+            #[cfg(feature = "pinyin")]
+            0 => {
+                unsafe { self.pinyin.as_ref().unwrap_unchecked() }
+                    .config
+                    .case_insensitive
+            }
             #[cfg(feature = "romaji")]
             1 => {
                 unsafe { self.romaji.as_ref().unwrap_unchecked() }
@@ -544,7 +521,8 @@ where
 
         if pattern_s.len() < pinyin.len() {
             if match LANG {
-                0 => self.pinyin_partial_pattern,
+                #[cfg(feature = "pinyin")]
+                0 => unsafe { self.pinyin.as_ref().unwrap_unchecked() }.partial_pattern,
                 #[cfg(feature = "romaji")]
                 1 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.partial_pattern,
                 _ => unreachable!(),
@@ -596,6 +574,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::pinyin::PinyinNotation;
+
     use super::*;
 
     #[macro_export]
@@ -607,14 +587,6 @@ mod test {
 
     fn assert_match(m: Option<Match>, expected: Option<(usize, usize)>) {
         assert_eq!(m.map(|m| (m.start(), m.len())), expected);
-    }
-
-    #[test]
-    fn ordered_pinyin_notations() {
-        assert_eq!(
-            PinyinNotation::all().iter().count(),
-            IbMatcher::<str>::ORDERED_PINYIN_NOTATIONS.len()
-        )
     }
 
     #[test]

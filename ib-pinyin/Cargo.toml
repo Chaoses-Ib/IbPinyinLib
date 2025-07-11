@@ -18,4 +18,4 @@ minimal = ["ib-matcher/minimal"]
 encoding = ["ib-matcher/encoding"]
 
 [dependencies]
-ib-matcher = { version = "0.3", path = "../ib-matcher" }
+ib-matcher = { version = "0.3", features = ["pinyin"], path = "../ib-matcher" }
