@@ -29,22 +29,33 @@ f(txt)
 txt = requests.get('https://codeberg.org/miurahr/pykakasi/raw/commit/4f26c75fed807046ddf5187c8fa190467b36ee79/src/data/hepburnhira.utf8').text
 f(txt)
 
+kanas = {}
+for romaji, kana_list in dic.items():
+    kana_list_set = set(kana_list)
+    if len(kana_list_set) != len(kana_list):
+        print(f'Duplicate kana for {romaji}: {kana_list} -> {kana_list_set}')
+    else:
+        print(romaji, kana_list)
+    for kana in kana_list_set:
+        if kana in kanas:
+            raise ValueError(f'Duplicate kana: {kana} for {romaji} and {kanas[kana]}')
+        kanas[kana] = romaji
+kanas = dict(sorted(kanas.items(), key=lambda item: chr(int(item[0].removeprefix('\\u{').removesuffix('}'), 16)) if item[0].startswith('\\u{') else item[0]))
+
 i = 1
 patterns = ''
 map = ''
-for romaji, kana_list in dic.items():
-    print(romaji, kana_list)
-    for kana in kana_list:
-        kana = kana.replace('"', '\\"')
-        romaji = romaji.replace('"', '\\"')
+for kana, romaji in kanas.items():
+    kana = kana.replace('"', '\\"')
+    romaji = romaji.replace('"', '\\"')
 
-        patterns += f'"{kana}",'
-        map += f'"{romaji}",'
-        
-        if i % 8 == 0:
-            patterns += '\n'
-            map += '\n'
-        i += 1
+    patterns += f'"{kana}",'
+    map += f'"{romaji}",'
+    
+    if i % 8 == 0:
+        patterns += '\n'
+        map += '\n'
+    i += 1
 print('patterns:')
 print(patterns)
 print('map:')
