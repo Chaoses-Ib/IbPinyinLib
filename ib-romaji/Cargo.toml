@@ -8,13 +8,18 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-aho-corasick = "1"
 bon = "3"
+daachorse = "1"
 
 [[bench]]
 name = "romaji"
 harness = false
 
 [dev-dependencies]
+aho-corasick = "1"
 criterion = "0.6"
 indexmap = "2"
+
+[[bench]]
+name = "words"
+harness = false

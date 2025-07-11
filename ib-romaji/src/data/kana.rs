@@ -1,5 +1,7 @@
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
+pub const KANA_MAX_LEN: usize = 12;
+
 pub static HEPBURN_KANAS: &[&str] = &[
 "ぁ","あ","ぃ","い","ぅ","う","ぇ","え",
 "ぉ","お","か","が","き","きゃ","きゅ","きょ",

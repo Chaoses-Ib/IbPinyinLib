@@ -2,6 +2,8 @@
 
 pub mod kana;
 
+pub const WORD_MAX_LEN: usize = 81;
+
 // pub static WORDS: &[&str] = &[];
 // pub static WORDS: &[&str] = include!("words.rs");
 pub static WORDS: &str = include_str!("words.in.txt");

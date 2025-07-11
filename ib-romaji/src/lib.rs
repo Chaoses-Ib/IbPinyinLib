@@ -4,15 +4,19 @@
 //!   - Source file: 2.98 MiB -> `\0`+`\`: 2.80 MiB, `\n`: 2.54 MiB
 //!   - `build()` time: `split()`/memchr +10%
 //! - And this way the str can also be compressed and then streamly decompressed.
-use aho_corasick::{AhoCorasick, Anchored, Input, MatchKind, StartKind};
 use bon::bon;
+use daachorse::{CharwiseDoubleArrayAhoCorasick, CharwiseDoubleArrayAhoCorasickBuilder, MatchKind};
+
+use crate::unicode::floor_char_boundary;
 
 mod data;
+mod unicode;
 
 /// https://en.wikipedia.org/wiki/Hepburn_romanization
 #[derive(Clone)]
 pub struct HepburnRomanizer {
-    ac: AhoCorasick,
+    // ac: AhoCorasick,
+    ac: CharwiseDoubleArrayAhoCorasick<u32>,
     kanji: bool,
 }
 
@@ -42,16 +46,27 @@ impl HepburnRomanizer {
         // memchr is as fast as std, but harder to work with
         let words = data::WORDS.split('\n');
 
-        let mut ac = AhoCorasick::builder();
-        ac.start_kind(StartKind::Anchored)
-            .match_kind(MatchKind::LeftmostLongest);
+        // let mut ac = AhoCorasick::builder();
+        // ac.start_kind(StartKind::Anchored)
+        //     .match_kind(MatchKind::LeftmostLongest);
+        // let ac = match (kana, word) {
+        //     (true, true) => ac.build(data::kana::HEPBURN_KANAS.iter().cloned().chain(words)),
+        //     (true, false) => ac.build(data::kana::HEPBURN_KANAS),
+        //     (false, true) => ac.build(words),
+        //     (false, false) => ac.build::<_, &str>([]),
+        // }
+        // .unwrap();
+
+        let ac =
+            CharwiseDoubleArrayAhoCorasickBuilder::new().match_kind(MatchKind::LeftmostLongest);
         let ac = match (kana, word) {
             (true, true) => ac.build(data::kana::HEPBURN_KANAS.iter().cloned().chain(words)),
             (true, false) => ac.build(data::kana::HEPBURN_KANAS),
             (false, true) => ac.build(words),
-            (false, false) => ac.build::<_, &str>([]),
+            (false, false) => ac.build([] as [&str; 0]),
         }
         .unwrap();
+
         Self { ac, kanji }
     }
 
@@ -61,20 +76,29 @@ impl HepburnRomanizer {
     /// assert_eq!(HepburnRomanizer::builder().kana(true).build().romanize_kana("あ"), Some((3, "a")));
     /// ```
     /// TODO: Iter
-    pub fn romanize_kana<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, &'static str)> {
-        let m = self.ac.find(Input::new(s).anchored(Anchored::Yes))?;
-        let pattern = m.pattern().as_usize();
+    pub fn romanize_kana<S: ?Sized + AsRef<str>>(&self, s: &S) -> Option<(usize, &'static str)> {
+        let s = s.as_ref();
+        let s = &s[..floor_char_boundary(s, data::kana::KANA_MAX_LEN)];
+        // let m = self.ac.find(Input::new(s).anchored(Anchored::Yes))?;
+        // let pattern = m.pattern().as_usize();
+        let m = self
+            .ac
+            .leftmost_find_iter(s)
+            .next()
+            .filter(|m| m.start() == 0)?;
+        let pattern = m.value() as usize;
+        let len = m.end() - m.start();
         data::kana::HEPBURN_ROMAJIS
             .get(pattern)
-            .map(|&romaji| (m.len(), romaji))
+            .map(|&romaji| (len, romaji))
     }
 
-    pub fn romanize_kana_str<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<(usize, String)> {
+    pub fn romanize_kana_str<S: ?Sized + AsRef<str>>(&self, s: &S) -> Option<(usize, String)> {
         let s = s.as_ref();
         let mut len = 0;
         let mut buf = String::new();
         while let Some((l, romaji)) = self.romanize_kana(&s[len..]).or_else(|| {
-            if s[len..].starts_with("、".as_bytes()) {
+            if s[len..].starts_with("、") {
                 Some((3, "、"))
             } else {
                 None
@@ -89,7 +113,7 @@ impl HepburnRomanizer {
         if len == 0 { None } else { Some((len, buf)) }
     }
 
-    pub fn romanize_kana_str_all<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Option<String> {
+    pub fn romanize_kana_str_all<S: ?Sized + AsRef<str>>(&self, s: &S) -> Option<String> {
         let s = s.as_ref();
         match self.romanize_kana_str(s) {
             Some((len, buf)) if len == s.len() => Some(buf),
@@ -97,24 +121,33 @@ impl HepburnRomanizer {
         }
     }
 
-    pub fn romanize_and_try_for_each<S: ?Sized + AsRef<[u8]>, T>(
+    pub fn romanize_and_try_for_each<S: ?Sized + AsRef<str>, T>(
         &self,
         s: &S,
         mut f: impl FnMut(usize, &'static str) -> Option<T>,
     ) -> Option<T> {
         let s = s.as_ref();
+        let s = &s[..floor_char_boundary(s, data::WORD_MAX_LEN)];
 
-        if let Some(m) = self.ac.find(Input::new(s).anchored(Anchored::Yes)) {
-            let pattern = m.pattern().as_usize();
+        // self.ac.find(Input::new(s).anchored(Anchored::Yes))
+        if let Some(m) = self
+            .ac
+            .leftmost_find_iter(s)
+            .next()
+            .filter(|m| m.start() == 0)
+        {
+            // let pattern = m.pattern().as_usize();
+            let pattern = m.value() as usize;
+            let len = m.end() - m.start();
             if pattern < data::kana::HEPBURN_ROMAJIS.len() {
                 let romaji = data::kana::HEPBURN_ROMAJIS[pattern];
-                if let Some(result) = f(m.len(), romaji) {
+                if let Some(result) = f(len, romaji) {
                     return Some(result);
                 }
             } else if pattern < data::kana::HEPBURN_ROMAJIS.len() + data::WORD_ROMAJIS.len() {
                 // TODO: Binary search
                 for romaji in data::WORD_ROMAJIS[pattern - data::kana::HEPBURN_ROMAJIS.len()] {
-                    if let Some(result) = f(m.len(), romaji) {
+                    if let Some(result) = f(len, romaji) {
                         return Some(result);
                     }
                 }
@@ -122,7 +155,7 @@ impl HepburnRomanizer {
         }
 
         if self.kanji {
-            let s = unsafe { str::from_utf8_unchecked(s) };
+            // let s = unsafe { str::from_utf8_unchecked(s) };
             if let Some(kanji) = s.chars().next() {
                 // TODO: Binary search
                 for romaji in data::kanji_romajis(kanji) {
@@ -137,7 +170,7 @@ impl HepburnRomanizer {
         None
     }
 
-    pub fn romanize_vec<S: ?Sized + AsRef<[u8]>>(&self, s: &S) -> Vec<(usize, &'static str)> {
+    pub fn romanize_vec<S: ?Sized + AsRef<str>>(&self, s: &S) -> Vec<(usize, &'static str)> {
         let mut results = Vec::new();
         self.romanize_and_try_for_each(s, |len, romaji| {
             results.push((len, romaji));
@@ -160,6 +193,21 @@ mod tests {
     use indexmap::IndexSet;
 
     use super::*;
+
+    #[test]
+    fn kana_max_len() {
+        let max_len = data::kana::HEPBURN_KANAS
+            .iter()
+            .inspect(|kana| {
+                if kana.len() == data::kana::KANA_MAX_LEN {
+                    println!("{}", kana);
+                }
+            })
+            .map(|s| s.len())
+            .max()
+            .unwrap();
+        assert_eq!(data::kana::KANA_MAX_LEN, max_len);
+    }
 
     #[test]
     fn kana() {
@@ -241,6 +289,7 @@ mod tests {
         let romanizer = HepburnRomanizer::builder().kana(true).build();
 
         let mut dup_count = 0;
+        let mut max_len = 0;
 
         let jmdict = fs::read_to_string("data/jmdict.csv").unwrap();
         let mut out_words = fs::File::create("src/data/words.in.txt").unwrap();
@@ -254,6 +303,10 @@ mod tests {
                 Some(v) => v,
                 None => continue,
             };
+
+            if word.len() > max_len {
+                max_len = word.len();
+            }
 
             // write!(out_words, "\"{kanji}\",").unwrap();
             if i != end {
@@ -297,6 +350,8 @@ mod tests {
         write!(out_kanas, "\n]").unwrap();
 
         println!("Words with duplicated romajis: {dup_count}");
+        println!("Max word length: {max_len}");
+        assert_eq!(data::WORD_MAX_LEN, max_len);
     }
 
     #[test]

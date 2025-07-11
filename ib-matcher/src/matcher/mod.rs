@@ -432,7 +432,7 @@ where
                 "non-UTF-8 romaji match is not yet supported"
             );
             if let Some(m) = romaji.config.romanizer.romanize_and_try_for_each(
-                haystack.as_bytes(),
+                unsafe { str::from_utf8_unchecked(haystack.as_bytes()) },
                 |len, romaji| {
                     let match_len_next = matched_len + len;
                     match self.sub_test_pinyin::<1>(

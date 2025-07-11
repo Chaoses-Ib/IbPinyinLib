@@ -8,6 +8,21 @@ use ib_matcher::{
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     {
+        let ac = daachorse::DoubleArrayAhoCorasick::<u32>::new(["pysseve"]).unwrap();
+        assert!(ac.find_iter("pysseverything").next().is_some());
+        c.bench_function("find_ascii_daachorse", |b| {
+            b.iter(|| ac.find_iter(black_box("pyssEverything")).next())
+        });
+    }
+    {
+        let ac = daachorse::CharwiseDoubleArrayAhoCorasick::<u32>::new(["pysseve"]).unwrap();
+        assert!(ac.find_iter("pysseverything").next().is_some());
+        c.bench_function("find_ascii_daachorse_charwise", |b| {
+            b.iter(|| ac.find_iter(black_box("pyssEverything")).next())
+        });
+    }
+
+    {
         assert!("pysseverything".find("pysseve").is_some());
         c.bench_function("find_ascii_std", |b| {
             b.iter(|| black_box("pysseverything").find("pysseve"))

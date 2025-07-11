@@ -204,6 +204,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
+name = "daachorse"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b7ef7a4be509357f4804d0a22e830daddb48f19fd604e4ad32ddce04a94c36"
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -314,6 +320,7 @@ dependencies = [
  "bitflags",
  "bon",
  "criterion",
+ "daachorse",
  "ib-romaji",
  "itertools 0.14.0",
  "regex",
@@ -345,6 +352,7 @@ dependencies = [
  "aho-corasick",
  "bon",
  "criterion",
+ "daachorse",
  "indexmap",
 ]
 
