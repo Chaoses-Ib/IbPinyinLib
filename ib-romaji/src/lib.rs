@@ -1,3 +1,9 @@
+//! ## Design
+//! `&[&str]` will cause each str to occupy 16 extra bytes to store the pointer and length. While CStr only needs 1 byte for each str.
+//! - For words, this can save 3.14 MiB (actually 3.54 MiB).
+//!   - Source file: 2.98 MiB -> `\0`+`\`: 2.80 MiB, `\n`: 2.54 MiB
+//!   - `build()` time: `split()`/memchr +10%
+//! - And this way the str can also be compressed and then streamly decompressed.
 use aho_corasick::{AhoCorasick, Anchored, Input, MatchKind, StartKind};
 use bon::bon;
 
@@ -19,13 +25,30 @@ impl HepburnRomanizer {
         #[builder(default = false)] kanji: bool,
         #[builder(default = false)] word: bool,
     ) -> Self {
+        // // let start = UnsafeCell::new(0);
+        // let mut start = 0;
+        // let words = memchr::memchr_iter(b'\n', data::WORDS.as_bytes()).map(|end| {
+        //     // let start = start.get();
+        //     // let word = unsafe { str::from_raw_parts(data::WORDS.as_ptr().add(start), end - start) };
+        //     let word = unsafe { data::WORDS.get_unchecked(start..end) };
+        //     start = end + 1;
+        //     word
+        // });
+        // // chain() will make the iterator significantly slower
+        // // .chain(iter::once(unsafe {
+        // //     data::WORDS.get_unchecked(*start.get()..)
+        // // }));
+
+        // memchr is as fast as std, but harder to work with
+        let words = data::WORDS.split('\n');
+
         let mut ac = AhoCorasick::builder();
         ac.start_kind(StartKind::Anchored)
             .match_kind(MatchKind::LeftmostLongest);
         let ac = match (kana, word) {
-            (true, true) => ac.build(data::kana::HEPBURN_KANAS.iter().chain(data::WORDS)),
+            (true, true) => ac.build(data::kana::HEPBURN_KANAS.iter().cloned().chain(words)),
             (true, false) => ac.build(data::kana::HEPBURN_KANAS),
-            (false, true) => ac.build(data::WORDS),
+            (false, true) => ac.build(words),
             (false, false) => ac.build::<_, &str>([]),
         }
         .unwrap();
@@ -217,17 +240,24 @@ mod tests {
         let mut dup_count = 0;
 
         let jmdict = fs::read_to_string("data/jmdict.csv").unwrap();
-        let mut out_kanjis = fs::File::create("src/data/words.rs").unwrap();
+        let mut out_words = fs::File::create("src/data/words.in.txt").unwrap();
         let mut out_kanas = fs::File::create("src/data/word_kanas.rs").unwrap();
-        writeln!(out_kanjis, "&[").unwrap();
+        // writeln!(out_words, "&[").unwrap();
+        // writeln!(out_words, "\"").unwrap();
+        let end = jmdict.lines().count() - 1;
         writeln!(out_kanas, "&[").unwrap();
         for (i, line) in jmdict.lines().enumerate() {
-            let (kanji, kanas) = match line.split_once('\t') {
+            let (word, kanas) = match line.split_once('\t') {
                 Some(v) => v,
                 None => continue,
             };
 
-            write!(out_kanjis, "\"{kanji}\",").unwrap();
+            // write!(out_words, "\"{kanji}\",").unwrap();
+            if i != end {
+                write!(out_words, "{word}\n").unwrap();
+            } else {
+                write!(out_words, "{word}").unwrap();
+            }
 
             let kanas_count = kanas.split('\t').count();
             let kanas_set: IndexSet<String> = kanas
@@ -253,11 +283,13 @@ mod tests {
             .unwrap();
 
             if (i + 1) % 8 == 0 {
-                out_kanjis.write_all(b"\n").unwrap();
+                // out_words.write_all(b"\n").unwrap();
+                // out_words.write_all(b"\\\n").unwrap();
                 out_kanas.write_all(b"\n").unwrap();
             }
         }
-        write!(out_kanjis, "\n]").unwrap();
+        // write!(out_words, "\n]").unwrap();
+        // write!(out_words, "\\\n\"").unwrap();
         write!(out_kanas, "\n]").unwrap();
 
         println!("Words with duplicated romajis: {dup_count}");

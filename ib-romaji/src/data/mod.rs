@@ -3,7 +3,8 @@
 pub mod kana;
 
 // pub static WORDS: &[&str] = &[];
-pub static WORDS: &[&str] = include!("words.rs");
+// pub static WORDS: &[&str] = include!("words.rs");
+pub static WORDS: &str = include_str!("words.in.txt");
 
 // pub static WORD_ROMAJIS: &[&[&str]] = &[&["onaji", "onajiku"], &["dou"]];
 pub static WORD_ROMAJIS: &[&[&str]] = include!("word_kanas.rs");
