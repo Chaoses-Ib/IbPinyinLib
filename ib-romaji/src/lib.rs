@@ -277,7 +277,8 @@ mod tests {
         let kanjidic = fs::read_to_string("data/kanjidic.csv").unwrap();
         let mut out_kanjis = fs::File::create("src/data/kanjis.rs").unwrap();
         writeln!(out_kanjis, "match kanji {{").unwrap();
-        for (i, line) in kanjidic.lines().enumerate() {
+        let mut range = 0;
+        for (_i, line) in kanjidic.lines().enumerate() {
             let (kanji, kanas) = match line.split_once('\t') {
                 Some(v) => v,
                 None => continue,
@@ -309,7 +310,11 @@ mod tests {
             )
             .unwrap();
 
-            if (i + 1) % 8 == 0 {
+            // (i + 1) % 8 == 0
+            // Natural align
+            let c = kanji.chars().next().unwrap() as u32;
+            if c / 10 != range {
+                range = c / 10;
                 out_kanjis.write_all(b"\n").unwrap();
             }
         }
@@ -341,7 +346,10 @@ mod tests {
         // writeln!(out_words, "\"").unwrap();
         // let end = jmdict.lines().count() - 1;
         writeln!(out_kanas, "&[").unwrap();
-        let mut c = 0;
+        // let mut c = 0;
+        let mut range = 0;
+        let mut range_c = 0;
+        let mut range_2 = 0;
         for (i, line) in jmdict.lines().enumerate() {
             let (word, kanas) = match line.split_once('\t') {
                 Some(v) => v,
@@ -414,10 +422,23 @@ mod tests {
                 write!(out_words, "\n{word}").unwrap();
             }
 
-            if i != 0 && (c + 1) % 8 == 0 {
-                // out_words.write_all(b"\n").unwrap();
-                // out_words.write_all(b"\\\n").unwrap();
-                out_kanas.write_all(b"\n").unwrap();
+            // i != 0 && (c + 1) % 8 == 0
+            // Natural align
+            let ch = word.chars().next().unwrap() as u32;
+            let ch2 = word.chars().nth(1).unwrap_or_default() as u32;
+            if ch / 100 != range || range_c > 10 && ch2 / 100 != range_2 {
+                if ch / 100 != range {
+                    range = ch / 100;
+                    range_c = 0;
+                }
+                range_2 = ch2 / 100;
+                if i != 0 {
+                    // out_words.write_all(b"\n").unwrap();
+                    // out_words.write_all(b"\\\n").unwrap();
+                    out_kanas.write_all(b"\n").unwrap();
+                }
+            } else {
+                range_c += 1;
             }
 
             write!(
@@ -431,7 +452,7 @@ mod tests {
             )
             .unwrap();
 
-            c += 1;
+            // c += 1;
         }
         // write!(out_words, "\n]").unwrap();
         // write!(out_words, "\\\n\"").unwrap();
