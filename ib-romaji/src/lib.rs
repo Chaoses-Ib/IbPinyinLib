@@ -178,6 +178,28 @@ impl HepburnRomanizer {
         });
         results
     }
+
+    pub fn is_romanizable<S: ?Sized + AsRef<str>>(&self, s: &S) -> bool {
+        let s = s.as_ref();
+        if s.is_empty() {
+            return true;
+        }
+        self.romanize_and_try_for_each(s, |len, _| self.is_romanizable(&s[len..]).then_some(()))
+            .is_some()
+    }
+
+    pub fn is_romanizable_to<S: ?Sized + AsRef<str>>(&self, s: &S, romaji: &S) -> bool {
+        let s = s.as_ref();
+        let romaji = romaji.as_ref();
+        if s.is_empty() {
+            return romaji.is_empty();
+        }
+        self.romanize_and_try_for_each(s, |len, word_romaji| {
+            self.is_romanizable_to(&s[len..], romaji.strip_prefix(word_romaji)?)
+                .then_some(())
+        })
+        .is_some()
+    }
 }
 
 impl Default for HepburnRomanizer {
@@ -232,6 +254,19 @@ mod tests {
         assert_eq!(data.romanize_kana_str("日は"), None);
     }
 
+    #[test]
+    fn is_romanizable_to() {
+        let data = HepburnRomanizer::builder().kana(true).kanji(true).build();
+        assert!(data.is_romanizable_to("は", "ha"));
+        assert!(data.is_romanizable_to("ハハハ", "hahaha"));
+        assert!(data.is_romanizable_to("ジョジョ", "jojo"));
+        assert!(data.is_romanizable_to("って", "tte"));
+        assert!(data.is_romanizable_to("日は", "hiha"));
+        assert!(data.is_romanizable_to("日は", "kusaha"));
+        assert!(!data.is_romanizable_to("今日", "kyou"));
+        assert!(data.is_romanizable_to("今日", "imakusa"));
+    }
+
     #[ignore]
     #[test]
     fn codegen_kanji() {
@@ -283,12 +318,20 @@ mod tests {
         println!("Kanjis with duplicated romajis: {dup_count}");
     }
 
+    /// `codegen_kanji()` should be run first.
+    ///
+    /// `cargo test --package ib-romaji --lib -r -- tests::codegen_word --exact --no-capture --ignored > data/word.txt`
     #[ignore]
     #[test]
     fn codegen_word() {
         let romanizer = HepburnRomanizer::builder().kana(true).build();
+        let kanji_romanizer = HepburnRomanizer::builder().kana(true).kanji(true).build();
 
         let mut dup_count = 0;
+        let mut romanizable_count = 0;
+        let mut partial_romanizable_count = 0;
+        let mut diff_romanizable_count = 0;
+        let mut unromanizable_count = 0;
         let mut max_len = 0;
 
         let jmdict = fs::read_to_string("data/jmdict.csv").unwrap();
@@ -296,60 +339,111 @@ mod tests {
         let mut out_kanas = fs::File::create("src/data/word_kanas.rs").unwrap();
         // writeln!(out_words, "&[").unwrap();
         // writeln!(out_words, "\"").unwrap();
-        let end = jmdict.lines().count() - 1;
+        // let end = jmdict.lines().count() - 1;
         writeln!(out_kanas, "&[").unwrap();
+        let mut c = 0;
         for (i, line) in jmdict.lines().enumerate() {
             let (word, kanas) = match line.split_once('\t') {
                 Some(v) => v,
                 None => continue,
             };
 
-            if word.len() > max_len {
-                max_len = word.len();
-            }
-
-            // write!(out_words, "\"{kanji}\",").unwrap();
-            if i != end {
-                write!(out_words, "{word}\n").unwrap();
-            } else {
-                write!(out_words, "{word}").unwrap();
-            }
-
             let kanas_count = kanas.split('\t').count();
-            let mut kanas_set: IndexSet<String> = kanas
+            let kanas_set: IndexSet<String> = kanas
                 .split('\t')
                 .map(|kana| match romanizer.romanize_kana_str_all(kana) {
-                    Some(romaji) => format!("\"{}\"", romaji),
+                    // format!("\"{}\"", romaji)
+                    Some(romaji) => romaji,
                     None => {
                         println!("Failed to romanize kana: {kana}");
                         kana.into()
                     }
                 })
                 .collect();
-            kanas_set.sort_unstable();
             if kanas_set.len() != kanas_count {
                 // println!("Duplicated romajis: {kanji}\t{kanas}");
                 dup_count += 1;
             }
 
-            write!(
-                out_kanas,
-                "&[{}],",
-                kanas_set.into_iter().collect::<Vec<_>>().join(",")
-            )
-            .unwrap();
+            // Filter out ordinary words
+            // Source file: 2.52+3.59=6.11 MiB -> 1.07+1.45=2.52 MiB
+            // Binary: -10.01 MiB
+            // TODO: What if the dependent word is in words?
+            let mut romajis = if kanji_romanizer.is_romanizable(word) {
+                let romajis = kanas_set
+                    .iter()
+                    .cloned()
+                    .filter(|romaji| !kanji_romanizer.is_romanizable_to(word, romaji))
+                    .collect::<Vec<_>>();
+                if romajis.len() != kanas_set.len() {
+                    if romajis.is_empty() {
+                        // println!("romanizable: {word}");
+                        romanizable_count += 1;
+                        continue;
+                    }
+                    println!(
+                        "partial: {word} -{} {kanas_set:?} -> {romajis:?}",
+                        kanas_set.len() - romajis.len()
+                    );
+                    partial_romanizable_count += 1;
+                } else {
+                    println!("diff: {word} {kanas_set:?}");
+                    diff_romanizable_count += 1;
+                }
+                romajis
+            } else {
+                println!("un: {word}");
+                unromanizable_count += 1;
+                kanas_set.into_iter().collect()
+            };
+            romajis.sort_unstable();
 
-            if (i + 1) % 8 == 0 {
+            if word.len() > max_len {
+                max_len = word.len();
+            }
+
+            // write!(out_words, "\"{kanji}\",").unwrap();
+            // if i != end {
+            //     write!(out_words, "{word}\n").unwrap();
+            // } else {
+            //     write!(out_words, "{word}").unwrap();
+            // }
+            if i == 0 {
+                write!(out_words, "{word}").unwrap();
+            } else {
+                write!(out_words, "\n{word}").unwrap();
+            }
+
+            if i != 0 && (c + 1) % 8 == 0 {
                 // out_words.write_all(b"\n").unwrap();
                 // out_words.write_all(b"\\\n").unwrap();
                 out_kanas.write_all(b"\n").unwrap();
             }
+
+            write!(
+                out_kanas,
+                "&[{}],",
+                romajis
+                    .into_iter()
+                    .map(|romaji| format!("\"{}\"", romaji))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+            .unwrap();
+
+            c += 1;
         }
         // write!(out_words, "\n]").unwrap();
         // write!(out_words, "\\\n\"").unwrap();
         write!(out_kanas, "\n]").unwrap();
 
         println!("Words with duplicated romajis: {dup_count}");
+        println!();
+        println!("Romanizable words: {romanizable_count}");
+        println!("Partial romanizable words: {partial_romanizable_count}");
+        println!("Different romanizable words: {diff_romanizable_count}");
+        println!("Unromanizable words: {unromanizable_count}");
+        println!();
         println!("Max word length: {max_len}");
         assert_eq!(data::WORD_MAX_LEN, max_len);
     }
@@ -391,9 +485,16 @@ mod tests {
         assert_eq!(data.romanize_vec("ジョジョ"), vec![(6, "jo")]);
         assert_eq!(data.romanize_vec("って"), vec![(6, "tte")]);
         assert_eq!(data.romanize_vec("日は"), vec![]);
+        assert_eq!(data.romanize_vec("今日"), vec![(6, "kyou")]);
+
+        let data = HepburnRomanizer::builder()
+            .kana(true)
+            .kanji(true)
+            .word(true)
+            .build();
         assert_eq!(
             data.romanize_vec("今日"),
-            vec![(6, "konchi"), (6, "konjitsu"), (6, "konnichi"), (6, "kyou")]
+            vec![(6, "kyou"), (3, "ima"), (3, "kin"), (3, "kon"), (3, "na")]
         );
     }
 }
