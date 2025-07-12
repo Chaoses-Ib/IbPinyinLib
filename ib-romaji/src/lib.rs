@@ -15,7 +15,7 @@
 use bon::bon;
 use daachorse::{CharwiseDoubleArrayAhoCorasick, CharwiseDoubleArrayAhoCorasickBuilder, MatchKind};
 
-use ib_unicode::str::floor_char_boundary;
+use ib_unicode::str::RoundCharBoundaryExt;
 
 mod data;
 
@@ -85,7 +85,7 @@ impl HepburnRomanizer {
     /// TODO: Iter
     pub fn romanize_kana<S: ?Sized + AsRef<str>>(&self, s: &S) -> Option<(usize, &'static str)> {
         let s = s.as_ref();
-        let s = &s[..floor_char_boundary(s, data::kana::KANA_MAX_LEN)];
+        let s = &s[..s.floor_char_boundary_ib(data::kana::KANA_MAX_LEN)];
         // let m = self.ac.find(Input::new(s).anchored(Anchored::Yes))?;
         // let pattern = m.pattern().as_usize();
         let m = self
@@ -134,7 +134,7 @@ impl HepburnRomanizer {
         mut f: impl FnMut(usize, &'static str) -> Option<T>,
     ) -> Option<T> {
         let s = s.as_ref();
-        let s = &s[..floor_char_boundary(s, data::WORD_MAX_LEN)];
+        let s = &s[..s.floor_char_boundary_ib(data::WORD_MAX_LEN)];
 
         // self.ac.find(Input::new(s).anchored(Anchored::Yes))
         if let Some(m) = self
