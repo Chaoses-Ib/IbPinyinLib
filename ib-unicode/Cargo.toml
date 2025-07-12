@@ -1,37 +1,26 @@
 [package]
-name = "ib-romaji"
+name = "ib-unicode"
 version = "0.1.0"
-edition = "2024"
-description = "A fast Japanese romanizer"
-keywords = ["romaji", "japanese", "cjk"]
+edition = "2021"
+description = "Unicode utils"
+keywords = ["unicode", "case"]
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
-[features]
+[dependencies]
+document-features = { version = "0.2.11", optional = true }
 
+[features]
+default = []
+
+## Enables all performance related features. This feature is intended to cover all reasonable features that improve performance, even if more are added in the future.
+perf = ["perf-unicode-case-map"]
+## -37% match time, +38 KiB
+perf-unicode-case-map = []
 
 doc = ["dep:document-features"]
-
-[dependencies]
-bon = "3"
-daachorse = "1"
-document-features = { version = "0.2", optional = true }
-ib-unicode = { version = "0.1", path = "../ib-unicode" }
-
-[[bench]]
-name = "romaji"
-harness = false
-
-[dev-dependencies]
-aho-corasick = "1"
-criterion = "0.6"
-indexmap = "2"
-
-[[bench]]
-name = "words"
-harness = false
 
 [package.metadata.docs.rs]
 # We want to document all features.

@@ -25,7 +25,7 @@ romaji = ["dep:ib-romaji"]
 ## Enables all performance related features. This feature is enabled by default is intended to cover all reasonable features that improve performance, even if more are added in the future.
 perf = ["perf-unicode-case-map"]
 ## -37% match time, +38 KiB
-perf-unicode-case-map = []
+perf-unicode-case-map = ["ib-unicode/perf-unicode-case-map"]
 
 ## Not used at the moment.
 ## 
@@ -50,6 +50,7 @@ bitflags = { version = "2", optional = true }
 bon = "3"
 document-features = { version = "0.2", optional = true }
 ib-romaji = { version = "0.1", optional = true, path = "../ib-romaji" }
+ib-unicode = { version = "0.1", path = "../ib-unicode" }
 itertools = "0.14"
 # TODO: perf-dfa-full
 regex = { version = "1.10.2", default-features = false, features = [

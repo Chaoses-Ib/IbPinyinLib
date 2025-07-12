@@ -333,6 +333,7 @@ dependencies = [
  "document-features",
  "ib-matcher",
  "ib-romaji",
+ "ib-unicode",
  "itertools 0.14.0",
  "regex",
  "widestring",
@@ -366,7 +367,15 @@ dependencies = [
  "criterion",
  "daachorse",
  "document-features",
+ "ib-unicode",
  "indexmap",
+]
+
+[[package]]
+name = "ib-unicode"
+version = "0.1.0"
+dependencies = [
+ "document-features",
 ]
 
 [[package]]

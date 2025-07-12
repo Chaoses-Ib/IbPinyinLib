@@ -15,10 +15,9 @@
 use bon::bon;
 use daachorse::{CharwiseDoubleArrayAhoCorasick, CharwiseDoubleArrayAhoCorasickBuilder, MatchKind};
 
-use crate::unicode::floor_char_boundary;
+use ib_unicode::str::floor_char_boundary;
 
 mod data;
-mod unicode;
 
 /// [Hepburn romanization](https://en.wikipedia.org/wiki/Hepburn_romanization)
 #[derive(Clone)]
