@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use bon::bon;
 
 use crate::{
-    matcher::{encoding::EncodedStr, matches::SubMatch},
+    matcher::{ascii::AsciiMatcher, encoding::EncodedStr, matches::SubMatch},
     unicode::{CharToMonoLowercase, StrToMonoLowercase},
 };
 
@@ -13,29 +13,17 @@ mod matches;
 #[cfg(feature = "regex")]
 mod regex_utils;
 
+mod ascii;
 #[cfg(feature = "pinyin")]
 mod pinyin;
 #[cfg(feature = "romaji")]
 mod romaji;
 
-pub use matches::Match;
+pub use matches::{Match, OptionMatchExt};
 #[cfg(feature = "pinyin")]
 pub use pinyin::*;
 #[cfg(feature = "romaji")]
 pub use romaji::*;
-
-enum AsciiMatcher {
-    /// - find_ascii_too_short: +170%
-    ///   - TODO
-    /// - is_match_ascii -50%
-    /// - find_ascii -55%
-    /// - build -60%, `build_analyze` -25%
-    /// - Build size -837.5 KiB
-    Ac(aho_corasick::AhoCorasick),
-    #[cfg(feature = "regex")]
-    #[allow(unused)]
-    Regex(regex::bytes::Regex),
-}
 
 struct PatternChar<'a> {
     c: char,
@@ -61,7 +49,10 @@ where
     HaystackStr: EncodedStr + ?Sized,
 {
     /// For ASCII-only haystack optimization.
-    ascii: Option<AsciiMatcher>,
+    ///
+    /// TODO: https://github.com/rust-lang/rust/issues/76560
+    // ascii: AsciiMatcher<{ HaystackStr::ELEMENT_LEN_BYTE }>,
+    ascii: AsciiMatcher<1>,
 
     pattern: Box<[PatternChar<'a>]>,
     _pattern_string: String,
@@ -177,23 +168,9 @@ where
         });
 
         // ASCII-only haystack optimization
-        let ascii = match pattern_bytes.is_ascii() {
-            true => Some(
-                // regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(&pattern_bytes))
-                //     .unicode(false)
-                //     .case_insensitive(case_insensitive)
-                //     .build()
-                //     .unwrap(),
-                AsciiMatcher::Ac(
-                    aho_corasick::AhoCorasick::builder()
-                        .ascii_case_insensitive(case_insensitive)
-                        .build(&[pattern_bytes])
-                        .unwrap(),
-                ),
-            ),
-            // ASCII-only haystack with non-ASCII pattern optimization
-            false => None,
-        };
+        let ascii = AsciiMatcher::builder(&pattern_bytes)
+            .case_insensitive(case_insensitive)
+            .build();
 
         Self {
             ascii,
@@ -236,23 +213,7 @@ where
         }
 
         if is_ascii {
-            return self
-                .ascii
-                .as_ref()
-                .map(|ascii| match ascii {
-                    AsciiMatcher::Ac(ac) => ac.find(haystack.as_bytes()).map(|m| Match {
-                        start: m.start() / HaystackStr::ELEMENT_LEN_BYTE,
-                        end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                        is_pattern_partial: false,
-                    }),
-                    #[cfg(feature = "regex")]
-                    AsciiMatcher::Regex(regex) => regex.find(haystack.as_bytes()).map(|m| Match {
-                        start: m.start() / HaystackStr::ELEMENT_LEN_BYTE,
-                        end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                        is_pattern_partial: false,
-                    }),
-                })
-                .flatten();
+            return self.ascii.find(haystack.as_bytes()).div(HaystackStr::CHAR);
         }
 
         for (i, _c, str) in haystack.char_index_strs() {
@@ -276,15 +237,7 @@ where
     /// It is recommended to use this method if all you need to do is test whether a match exists, since the underlying matching engine may be able to do less work.
     pub fn is_match(&self, haystack: &HaystackStr) -> bool {
         if haystack.is_ascii() {
-            return self
-                .ascii
-                .as_ref()
-                .map(|ascii| match ascii {
-                    AsciiMatcher::Ac(ac) => ac.is_match(haystack.as_bytes()),
-                    #[cfg(feature = "regex")]
-                    AsciiMatcher::Regex(regex) => regex.is_match(haystack.as_bytes()),
-                })
-                .unwrap_or(false);
+            return self.ascii.is_match(haystack.as_bytes());
         }
 
         self.find_with_is_ascii(haystack, false).is_some()
@@ -309,30 +262,7 @@ where
         }
 
         if haystack.is_ascii() {
-            return self
-                .ascii
-                .as_ref()
-                .map(|ascii| match ascii {
-                    AsciiMatcher::Ac(ac) => ac
-                        .find(haystack.as_bytes())
-                        .filter(|m| m.start() == 0)
-                        .map(|m| Match {
-                            start: 0,
-                            end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                            is_pattern_partial: false,
-                        }),
-                    // TODO: Use regex-automata's anchored searches?
-                    #[cfg(feature = "regex")]
-                    AsciiMatcher::Regex(regex) => regex
-                        .find(haystack.as_bytes())
-                        .filter(|m| m.start() == 0)
-                        .map(|m| Match {
-                            start: 0,
-                            end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
-                            is_pattern_partial: false,
-                        }),
-                })
-                .flatten();
+            return self.ascii.test(haystack.as_bytes()).div(HaystackStr::CHAR);
         }
 
         self.sub_test(&self.pattern, haystack, 0)

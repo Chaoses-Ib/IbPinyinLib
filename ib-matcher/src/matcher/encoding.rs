@@ -10,6 +10,7 @@ pub trait EncodedStr: Sealed {
     type SLICE: ?Sized;
 
     const ELEMENT_LEN_BYTE: usize = core::mem::size_of::<Self::CHAR>();
+    const CHAR: usize = Self::ELEMENT_LEN_BYTE;
 
     fn is_ascii(&self) -> bool;
     fn as_bytes(&self) -> &[u8];

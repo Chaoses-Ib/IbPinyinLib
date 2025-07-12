@@ -35,3 +35,8 @@ pub mod unicode;
 
 #[cfg(feature = "romaji")]
 pub use ib_romaji as romaji;
+
+mod private {
+    pub trait Sealed {}
+}
+use private::Sealed;
