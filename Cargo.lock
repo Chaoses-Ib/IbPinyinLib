@@ -278,6 +278,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "document-features"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95249b50c6c185bee49034bcb378a49dc2b5dff0be90ff6616d31d64febab05d"
+dependencies = [
+ "litrs",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -321,6 +330,8 @@ dependencies = [
  "bon",
  "criterion",
  "daachorse",
+ "document-features",
+ "ib-matcher",
  "ib-romaji",
  "itertools 0.14.0",
  "regex",
@@ -331,6 +342,7 @@ dependencies = [
 name = "ib-pinyin"
 version = "0.3.0"
 dependencies = [
+ "document-features",
  "ib-matcher",
 ]
 
@@ -353,6 +365,7 @@ dependencies = [
  "bon",
  "criterion",
  "daachorse",
+ "document-features",
  "indexmap",
 ]
 
@@ -420,6 +433,12 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
+name = "litrs"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4ce301924b7887e9d637144fdade93f9dfff9b60981d4ac161db09720d39aa5"
 
 [[package]]
 name = "log"

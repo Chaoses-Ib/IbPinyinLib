@@ -48,7 +48,7 @@ struct PatternChar<'a> {
 /// API follows [`regex::Regex`](https://docs.rs/regex/latest/regex/struct.Regex.html).
 ///
 /// ## Performance
-/// - If you need to build [`IbMatcher`] multiple times, pass [`IbMatcherBuilder::pinyin_data`] to the builder to avoid re-initializing the pinyin data every time.
+/// - If you need to build [`IbMatcher`] multiple times, pass [`PinyinMatchConfigBuilder::data`] to the builder to avoid re-initializing the pinyin data every time.
 /// - For matching more than 1000 strings, enable [`IbMatcherBuilder::analyze`] to optimize the pattern further. (The analysis costs ~65us, equivalent to about 220~1100 matches.)
 ///
 /// TODO: No-pinyin pattern optimization
@@ -93,11 +93,15 @@ where
         analyze: bool,
         analyze_config: Option<analyze::PatternAnalyzeConfig>,
 
-        /// The case insensitivity of pinyin is controlled by `pinyin_case_insensitive`.
+        /// The case insensitivity of pinyin is controlled by [`PinyinMatchConfigBuilder::case_insensitive`].
         #[builder(default = true)]
         case_insensitive: bool,
 
-        #[builder(default = false)] is_pattern_partial: bool,
+        /// If `true`, the pattern can match pinyins/romajis starting with the ending of the pattern.
+        ///
+        /// For example, pattern "pinyi" can match "拼音" (whose pinyin is "pinyin") if `is_pattern_partial` is `true`.
+        #[builder(default = false)]
+        is_pattern_partial: bool,
 
         #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
@@ -215,6 +219,9 @@ where
         }
     }
 
+    /// This routine searches for the first match of this pattern in the haystack given, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
+    ///
+    /// Note that this should only be used if you want to find the entire match. If instead you just want to test the existence of a match, it’s potentially faster to use [`IbMatcher::is_match()`] instead of `IbMatcher::find().is_some()`.
     pub fn find(&self, haystack: &HaystackStr) -> Option<Match> {
         self.find_with_is_ascii(haystack, haystack.is_ascii())
     }
@@ -264,6 +271,9 @@ where
         None
     }
 
+    /// Returns true if and only if there is a match for the pattern anywhere in the haystack given.
+    ///
+    /// It is recommended to use this method if all you need to do is test whether a match exists, since the underlying matching engine may be able to do less work.
     pub fn is_match(&self, haystack: &HaystackStr) -> bool {
         if haystack.is_ascii() {
             return self
@@ -280,6 +290,8 @@ where
         self.find_with_is_ascii(haystack, false).is_some()
     }
 
+    /// This routine tests if this pattern matches the haystack at the start, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
+    ///
     /// ## Returns
     /// - `Match.start()` is guaranteed to be 0.
     /// - If there are multiple possible matches, the longer ones are preferred. But the result is not guaranteed to be the longest one.
@@ -297,7 +309,6 @@ where
         }
 
         if haystack.is_ascii() {
-            // TODO: Use regex-automata's anchored searches?
             return self
                 .ascii
                 .as_ref()
@@ -310,6 +321,7 @@ where
                             end: m.end() / HaystackStr::ELEMENT_LEN_BYTE,
                             is_pattern_partial: false,
                         }),
+                    // TODO: Use regex-automata's anchored searches?
                     #[cfg(feature = "regex")]
                     AsciiMatcher::Regex(regex) => regex
                         .find(haystack.as_bytes())

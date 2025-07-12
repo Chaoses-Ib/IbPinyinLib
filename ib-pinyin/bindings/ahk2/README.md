@@ -1,4 +1,4 @@
-# IbPinyinLib.AutoHotkey2
+# ib-pinyin-ahk2
 Binding for [AutoHotkey](https://www.autohotkey.com/) v2.
 
 ## Usage

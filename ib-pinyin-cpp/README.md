@@ -1,4 +1,4 @@
-# IbPinyinLib.C++
+# ib-pinyin-cpp
 一个 C++ 拼音库。
 
 * 支持 Unicode 辅助平面汉字

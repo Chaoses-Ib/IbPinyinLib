@@ -1,9 +1,17 @@
+//! A fast Japanese romanizer.
+//!
+//! The dictionary will take ~5.5 MiB in the binary at the moment.
+//!
 //! ## Design
 //! `&[&str]` will cause each str to occupy 16 extra bytes to store the pointer and length. While CStr only needs 1 byte for each str.
 //! - For words, this can save 3.14 MiB (actually 3.54 MiB).
 //!   - Source file: 2.98 MiB -> `\0`+`\`: 2.80 MiB, `\n`: 2.54 MiB
 //!   - `build()` time: `split()`/memchr +10%
 //! - And this way the str can also be compressed and then streamly decompressed.
+//!
+//! ## Features
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(feature = "doc", doc = document_features::document_features!())]
 use bon::bon;
 use daachorse::{CharwiseDoubleArrayAhoCorasick, CharwiseDoubleArrayAhoCorasickBuilder, MatchKind};
 
@@ -12,7 +20,7 @@ use crate::unicode::floor_char_boundary;
 mod data;
 mod unicode;
 
-/// https://en.wikipedia.org/wiki/Hepburn_romanization
+/// [Hepburn romanization](https://en.wikipedia.org/wiki/Hepburn_romanization)
 #[derive(Clone)]
 pub struct HepburnRomanizer {
     // ac: AhoCorasick,

@@ -1,4 +1,4 @@
-# IbPinyinLib.C
+# ib-pinyin-c
 ## Usage
 ```c
 #include <ib_pinyin/ib_pinyin.h>

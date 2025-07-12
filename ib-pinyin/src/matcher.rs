@@ -43,12 +43,16 @@ where
 
     /// Default: `true`
     ///
-    /// The case insensitivity of pinyin is controlled by `pinyin_case_insensitive`.
+    /// The case insensitivity of pinyin is controlled by [`PinyinMatcherBuilder::pinyin_case_insensitive`].
     pub fn case_insensitive(mut self, case_insensitive: bool) -> Self {
         self.case_insensitive = case_insensitive;
         self
     }
 
+    /// If `true`, the pattern can match pinyins starting with the ending of the pattern.
+    ///
+    /// For example, pattern "pinyi" can match "拼音" (whose pinyin is "pinyin") if `is_pattern_partial` is `true`.
+    ///
     /// Default: `false`
     pub fn is_pattern_partial(mut self, is_pattern_partial: bool) -> Self {
         self.is_pattern_partial = is_pattern_partial;
@@ -70,6 +74,8 @@ where
         self
     }
 
+    /// Whether upper case letters can match pinyins.
+    ///
     /// Default: `false`
     pub fn pinyin_case_insensitive(mut self, pinyin_case_insensitive: bool) -> Self {
         self.pinyin_case_insensitive = pinyin_case_insensitive;
@@ -120,14 +126,22 @@ where
         PinyinMatcherBuilder::new(pattern)
     }
 
+    /// This routine searches for the first match of this pattern in the haystack given, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
+    ///
+    /// Note that this should only be used if you want to find the entire match. If instead you just want to test the existence of a match, it’s potentially faster to use [`PinyinMatcher::is_match()`] instead of `PinyinMatcher::find().is_some()`.
     pub fn find(&self, haystack: &HaystackStr) -> Option<Match> {
         self.matcher.find(haystack)
     }
 
+    /// Returns true if and only if there is a match for the pattern anywhere in the haystack given.
+    ///
+    /// It is recommended to use this method if all you need to do is test whether a match exists, since the underlying matching engine may be able to do less work.
     pub fn is_match(&self, haystack: &HaystackStr) -> bool {
         self.matcher.is_match(haystack)
     }
 
+    /// This routine tests if this pattern matches the haystack at the start, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
+    ///
     /// ## Returns
     /// - `Match.start()` is guaranteed to be 0.
     /// - If there are multiple possible matches, the longer ones are preferred. But the result is not guaranteed to be the longest one.

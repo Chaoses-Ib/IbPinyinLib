@@ -2,14 +2,22 @@
 name = "ib-romaji"
 version = "0.1.0"
 edition = "2024"
+description = "A fast Japanese romanizer"
+keywords = ["romaji", "japanese", "cjk"]
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[features]
+
+
+doc = ["dep:document-features"]
+
 [dependencies]
 bon = "3"
 daachorse = "1"
+document-features = { version = "0.2", optional = true }
 
 [[bench]]
 name = "romaji"
@@ -23,3 +31,18 @@ indexmap = "2"
 [[bench]]
 name = "words"
 harness = false
+
+[package.metadata.docs.rs]
+# We want to document all features.
+all-features = true
+# Since this crate's feature setup is pretty complicated, it is worth opting
+# into a nightly unstable option to show the features that need to be enabled
+# for public API items. To do that, we set 'docsrs', and when that's enabled,
+# we enable the 'doc_auto_cfg' feature.
+#
+# To test this locally, run:
+# ```
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+# $env:RUSTDOCFLAGS="--cfg docsrs"; cargo +nightly doc --all-features
+# ```
+rustdoc-args = ["--cfg", "docsrs"]

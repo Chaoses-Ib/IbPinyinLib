@@ -3,8 +3,8 @@ name = "ib-pinyin"
 version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
-description = "一个高性能拼音匹配库"
-keywords = ["pinyin", "cjk"]
+description = "一个高性能拼音查询、匹配库"
+keywords = ["matcher", "pinyin", "cjk"]
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -13,9 +13,30 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+## Make [`pinyin::PinyinData`] interior mutable. So it can be easily used as a `static` variable.
 inmut-data = ["ib-matcher/inmut-data"]
+## Minimal APIs that can be used in one call. See [`minimal`] for details.
 minimal = ["ib-matcher/minimal"]
+## Support for non-UTF-8 encodings. Only UTF-16 and UTF-32 at the moment.
 encoding = ["ib-matcher/encoding"]
 
+doc = ["dep:document-features"]
+
 [dependencies]
+document-features = { version = "0.2", optional = true }
 ib-matcher = { version = "0.3", features = ["pinyin"], path = "../ib-matcher" }
+
+[package.metadata.docs.rs]
+# We want to document all features.
+all-features = true
+# Since this crate's feature setup is pretty complicated, it is worth opting
+# into a nightly unstable option to show the features that need to be enabled
+# for public API items. To do that, we set 'docsrs', and when that's enabled,
+# we enable the 'doc_auto_cfg' feature.
+#
+# To test this locally, run:
+# ```
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+# $env:RUSTDOCFLAGS="--cfg docsrs"; cargo +nightly doc --all-features
+# ```
+rustdoc-args = ["--cfg", "docsrs"]

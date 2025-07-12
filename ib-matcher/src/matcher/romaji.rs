@@ -10,6 +10,7 @@ pub struct RomajiMatchConfig<'a> {
     #[builder(with = |romanizer: &'a HepburnRomanizer| Cow::Borrowed(romanizer))]
     pub(crate) romanizer: Cow<'a, HepburnRomanizer>,
 
+    /// Whether upper case letters can match Japanese words.
     #[builder(default = false)]
     pub(crate) case_insensitive: bool,
 

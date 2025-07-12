@@ -3,8 +3,8 @@ name = "ib-matcher"
 version = "0.3.0"
 edition = "2021"
 rust-version = "1.75"
-description = "一个高性能拼音匹配库"
-keywords = ["pinyin", "cjk"]
+description = "A multilingual and fast string matcher, supports 拼音匹配 (Chinese pinyin match) and ローマ字検索 (Japanese romaji match)"
+keywords = ["matcher", "cjk", "pinyin", "romaji"]
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -15,25 +15,40 @@ license.workspace = true
 [features]
 default = ["perf"]
 
+## Chinese pinyin match support.
 pinyin = ["dep:arraystring", "dep:bitflags"]
+## Japanese romaji match support.
+##
+## The dictionary will take ~5.5 MiB in the binary at the moment, much larger than pinyin's.
 romaji = ["dep:ib-romaji"]
 
-perf = ["unicode-case-map"]
-# -37% match time, +38 KiB
-unicode-case-map = []
+## Enables all performance related features. This feature is enabled by default is intended to cover all reasonable features that improve performance, even if more are added in the future.
+perf = ["perf-unicode-case-map"]
+## -37% match time, +38 KiB
+perf-unicode-case-map = []
 
-# Build size +837.5 KiB
+## Not used at the moment.
+## 
+## Build size +837.5 KiB
 regex = ["dep:regex"]
 
+## Make [`pinyin::PinyinData`] interior mutable. So it can be easily used as a `static` variable.
 inmut-data = []
+## Minimal APIs that can be used in one call. See [`minimal`] for details.
 minimal = ["inmut-data", "pinyin"]
+## Support for non-UTF-8 encodings. Only UTF-16 and UTF-32 at the moment.
+##
+## Non-UTF-8 Japanese romaji match is not yet supported.
 encoding = ["dep:widestring"]
+
+doc = ["dep:document-features"]
 
 [dependencies]
 aho-corasick = "1"
 arraystring = { version = "0.3", optional = true }
 bitflags = { version = "2", optional = true }
 bon = "3"
+document-features = { version = "0.2", optional = true }
 ib-romaji = { version = "0.1", optional = true, path = "../ib-romaji" }
 itertools = "0.14"
 # TODO: perf-dfa-full
@@ -46,6 +61,7 @@ widestring = { version = "1.0.2", optional = true }
 [dev-dependencies]
 criterion = "0.6"
 daachorse = "1"
+ib-matcher = { features = ["pinyin", "romaji"], path = "." }
 
 [[bench]]
 name = "matcher"
@@ -55,3 +71,18 @@ harness = false
 name = "regex"
 harness = false
 # cargo bench --bench regex --features regex
+
+[package.metadata.docs.rs]
+# We want to document all features.
+all-features = true
+# Since this crate's feature setup is pretty complicated, it is worth opting
+# into a nightly unstable option to show the features that need to be enabled
+# for public API items. To do that, we set 'docsrs', and when that's enabled,
+# we enable the 'doc_auto_cfg' feature.
+#
+# To test this locally, run:
+# ```
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+# $env:RUSTDOCFLAGS="--cfg docsrs"; cargo +nightly doc --all-features
+# ```
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,7 +1,36 @@
-# ib-matcher
+# [ib-matcher](ib-matcher/README.md)
+[![crates.io](https://img.shields.io/crates/v/ib-matcher.svg)](https://crates.io/crates/ib-matcher)
+[![Documentation](https://docs.rs/ib-matcher/badge.svg)](https://docs.rs/ib-matcher)
 [![License](https://img.shields.io/crates/l/ib-matcher.svg)](LICENSE.txt)
 
-一个高性能 Rust 拼音匹配库。
+A multilingual and fast string matcher, supports 拼音匹配 (Chinese pinyin match) and ローマ字検索 (Japanese romaji match).
+
+Usage:
+```rust
+//! cargo add ib-matcher --features pinyin,romaji
+use ib_matcher::{
+    matcher::{IbMatcher, PinyinMatchConfig, RomajiMatchConfig},
+    pinyin::PinyinNotation,
+};
+
+let matcher = IbMatcher::builder("pysousuoeve")
+    .pinyin(PinyinMatchConfig::notations(
+        PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+    ))
+    .build();
+assert!(matcher.is_match("拼音搜索Everything"));
+
+let matcher = IbMatcher::builder("konosuba")
+    .romaji(RomajiMatchConfig::default())
+    .is_pattern_partial(true)
+    .build();
+assert!(matcher.is_match("この素晴らしい世界に祝福を"));
+```
+
+You can also use [ib-pinyin](#ib-pinyin) if you only need Chinese pinyin match, which is simpler and more stable.
+
+## [ib-pinyin](ib-pinyin/README.md)
+一个高性能 Rust 拼音查询、匹配库。
 
 - 支持以下拼音编码方案：
   - 简拼（“py”）
@@ -19,7 +48,8 @@
 - 默认小写字母匹配拼音或字母，大写字母只匹配字母。
 - 支持 Unicode 辅助平面汉字。
 
-## 支持语言
+支持 C、AHK2。
+
 ### [Rust](ib-pinyin)
 [![crates.io](https://img.shields.io/crates/v/ib-pinyin.svg)](https://crates.io/crates/ib-pinyin)
 [![Documentation](https://docs.rs/ib-pinyin/badge.svg)](https://docs.rs/ib-pinyin)
@@ -73,7 +103,7 @@ IsMatch := IbPinyin_Match("pysousuoeve", "拼音搜索Everything", IbPinyin_Asci
 ## 其它拼音相关项目
 语言 | 库 | 拼音 | 双拼 | 词典 | 匹配 | 其它
 --- | --- | --- | --- | --- | --- | ---
-Rust <br /> (C, AHK2) | ib-matcher | ✔️ Unicode | ✔️ | ❌ | ✔️ | 性能优先；支持 Unicode 辅助平面汉字
+Rust <br /> (C, AHK2) | ib-matcher/ib-pinyin | ✔️ Unicode | ✔️ | ❌ | ✔️ | 支持日文；性能优先；支持 Unicode 辅助平面汉字
 Rust <br /> ([Node.js](https://github.com/Brooooooklyn/pinyin)) | [rust-pinyin](https://github.com/mozillazg/rust-pinyin) | ✔️ Unicode | ❌ | ❌ | ❌
 Rust | [rust-pinyin](https://github.com/samlink/rust_pinyin) | 简拼 | ❌ | ❌ | ❌
 C# | [ToolGood.Words.Pinyin](https://github.com/toolgood/ToolGood.Words.Pinyin) | ✔️ | ❌ | ❌ | 单编码？
@@ -94,7 +124,7 @@ Perl <br /> ([Rust](https://github.com/chowdhurya/rust-unidecode/), [Java](https
 - [Simple tokenizer: 支持中文和拼音的 SQLite fts5 全文搜索扩展 ｜ A SQLite3 fts5 tokenizer which supports Chinese and PinYin](https://github.com/wangfenjin/simple)
 
 文件搜索/启动器：
-- [IbEverythingExt: Everything 拼音搜索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 ib-matcher）
+- [IbEverythingExt: Everything Everything 拼音搜索、ローマ字検索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)（基于 ib-matcher）
 - [Listary](https://www.listary.com/)（简拼、全拼）
 
 文件管理：

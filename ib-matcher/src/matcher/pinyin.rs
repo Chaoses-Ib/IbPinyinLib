@@ -16,6 +16,7 @@ pub struct PinyinMatchConfig<'a> {
     #[builder(with = |data: &'a PinyinData| Cow::Borrowed(data))]
     pub(crate) data: Cow<'a, PinyinData>,
 
+    /// Whether upper case letters can match pinyins.
     #[builder(default = false)]
     pub(crate) case_insensitive: bool,
 
