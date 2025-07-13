@@ -14,3 +14,7 @@ authors = ["Chaoses-Ib"]
 homepage = "https://github.com/Chaoses-Ib/ib-matcher"
 repository = "https://github.com/Chaoses-Ib/ib-matcher"
 license = "MIT"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

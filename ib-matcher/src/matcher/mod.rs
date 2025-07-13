@@ -3,12 +3,13 @@ use std::marker::PhantomData;
 use bon::bon;
 
 use crate::{
-    matcher::{ascii::AsciiMatcher, encoding::EncodedStr, matches::SubMatch},
+    matcher::{ascii::AsciiMatcher, encoding::EncodedStr, input::Input, matches::SubMatch},
     unicode::{CharToMonoLowercase, StrToMonoLowercase},
 };
 
 pub mod analyze;
 pub mod encoding;
+pub mod input;
 mod matches;
 #[cfg(feature = "regex")]
 mod regex_utils;
@@ -206,11 +207,20 @@ where
     /// This routine searches for the first match of this pattern in the haystack given, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
     ///
     /// Note that this should only be used if you want to find the entire match. If instead you just want to test the existence of a match, it’s potentially faster to use [`IbMatcher::is_match()`] instead of `IbMatcher::find().is_some()`.
-    pub fn find(&self, haystack: &HaystackStr) -> Option<Match> {
-        self.find_with_is_ascii(haystack, haystack.is_ascii())
+    pub fn find<'h>(&'a self, input: impl Into<Input<'h, HaystackStr>>) -> Option<Match>
+    where
+        HaystackStr: 'h,
+    {
+        let input = input.into();
+        let is_ascii = input.haystack.is_ascii();
+        self.find_with_is_ascii(input, is_ascii)
     }
 
-    fn find_with_is_ascii(&self, haystack: &HaystackStr, is_ascii: bool) -> Option<Match> {
+    fn find_with_is_ascii<'h>(
+        &self,
+        input: Input<'h, HaystackStr>,
+        is_ascii: bool,
+    ) -> Option<Match> {
         if self.pattern.is_empty() {
             return Some(Match {
                 start: 0,
@@ -219,6 +229,7 @@ where
             });
         }
 
+        let haystack = input.haystack;
         if is_ascii {
             return self.ascii.find(haystack.as_bytes()).div(HaystackStr::CHAR);
         }
@@ -243,12 +254,17 @@ where
     /// Returns true if and only if there is a match for the pattern anywhere in the haystack given.
     ///
     /// It is recommended to use this method if all you need to do is test whether a match exists, since the underlying matching engine may be able to do less work.
-    pub fn is_match(&self, haystack: &HaystackStr) -> bool {
+    pub fn is_match<'h>(&self, input: impl Into<Input<'h, HaystackStr>>) -> bool
+    where
+        HaystackStr: 'h,
+    {
+        let input = input.into();
+        let haystack = input.haystack;
         if haystack.is_ascii() {
             return self.ascii.is_match(haystack.as_bytes());
         }
 
-        self.find_with_is_ascii(haystack, false).is_some()
+        self.find_with_is_ascii(input, false).is_some()
     }
 
     /// This routine tests if this pattern matches the haystack at the start, and if found, returns a [`Match`]. The [`Match`] provides access to both the byte offsets of the match and [`Match::is_pattern_partial()`].
@@ -256,7 +272,12 @@ where
     /// ## Returns
     /// - `Match.start()` is guaranteed to be 0.
     /// - If there are multiple possible matches, the longer ones are preferred. But the result is not guaranteed to be the longest one.
-    pub fn test(&self, haystack: &HaystackStr) -> Option<Match> {
+    pub fn test<'h>(&self, input: impl Into<Input<'h, HaystackStr>>) -> Option<Match>
+    where
+        HaystackStr: 'h,
+    {
+        let input = input.into();
+        let haystack = input.haystack;
         if self.is_haystack_too_short(haystack) {
             return None;
         } else {

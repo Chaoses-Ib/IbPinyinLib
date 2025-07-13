@@ -22,6 +22,15 @@
 //! assert!(matcher.is_match("この素晴らしい世界に祝福を"));
 //! ```
 //!
+//! ## Performance
+//! The following `Cargo.toml` settings are recommended if best performance is desired:
+//! ```toml
+//! [profile.release]
+//! lto = "fat"
+//! codegen-units = 1
+//! ```
+//! These can improve the performance by 5~10% at most.
+//!
 //! ## Features
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "doc", doc = document_features::document_features!())]
