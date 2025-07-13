@@ -1,3 +1,4 @@
+use aho_corasick::{Anchored, Input, StartKind};
 use bon::bon;
 
 use crate::matcher::Match;
@@ -22,7 +23,20 @@ use AsciiMatcher::*;
 
 pub struct AcMatcher {
     ac: aho_corasick::AhoCorasick,
+    /// `ac` also has `start_kind`, but here has free space so anyway
+    starts_with: bool,
     ends_with: bool,
+}
+
+impl AcMatcher {
+    #[inline]
+    pub fn input<'h>(&self, haystack: &'h [u8]) -> Input<'h> {
+        Input::new(haystack).anchored(if self.starts_with {
+            Anchored::Yes
+        } else {
+            Anchored::No
+        })
+    }
 }
 
 #[bon]
@@ -31,6 +45,7 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
     pub fn new(
         #[builder(start_fn)] pattern: &[u8],
         #[builder(default = false)] case_insensitive: bool,
+        #[builder(default = false)] starts_with: bool,
         #[builder(default = false)] ends_with: bool,
     ) -> Self {
         match pattern.is_ascii() {
@@ -43,8 +58,14 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                 Ac(AcMatcher {
                     ac: aho_corasick::AhoCorasick::builder()
                         .ascii_case_insensitive(case_insensitive)
+                        .start_kind(if starts_with {
+                            StartKind::Anchored
+                        } else {
+                            StartKind::Unanchored
+                        })
                         .build(&[pattern])
                         .unwrap(),
+                    starts_with,
                     ends_with,
                 })
             }
@@ -57,9 +78,13 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
             Fail => None,
             Ac(ac) => {
                 if ac.ends_with {
-                    let start = haystack.len().saturating_sub(ac.ac.max_pattern_len());
+                    let start = if ac.starts_with {
+                        0
+                    } else {
+                        haystack.len().saturating_sub(ac.ac.max_pattern_len())
+                    };
                     ac.ac
-                        .find_iter(&haystack[start..])
+                        .find_iter(ac.input(&haystack[start..]))
                         .filter(|m| start + m.end() == haystack.len())
                         .map(|m| Match {
                             start: start + m.start() / CHAR_LEN,
@@ -68,7 +93,7 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                         })
                         .next()
                 } else {
-                    ac.ac.find(haystack).map(|m| Match {
+                    ac.ac.find(ac.input(haystack)).map(|m| Match {
                         start: m.start() / CHAR_LEN,
                         end: m.end() / CHAR_LEN,
                         is_pattern_partial: false,
@@ -91,7 +116,7 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                 if ac.ends_with {
                     self.find(haystack).is_some()
                 } else {
-                    ac.ac.is_match(haystack)
+                    ac.ac.is_match(ac.input(haystack))
                 }
             }
             #[cfg(feature = "regex")]
@@ -103,9 +128,11 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
         match self {
             Fail => None,
             Ac(ac) => {
+                // TODO: Always use anchored?
+                let input = ac.input(haystack);
                 if ac.ends_with {
                     ac.ac
-                        .find(haystack)
+                        .find(input)
                         .filter(|m| m.start() == 0 && m.end() == haystack.len())
                         .map(|m| Match {
                             start: 0,
@@ -113,14 +140,11 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                             is_pattern_partial: false,
                         })
                 } else {
-                    ac.ac
-                        .find(haystack)
-                        .filter(|m| m.start() == 0)
-                        .map(|m| Match {
-                            start: 0,
-                            end: m.end() / CHAR_LEN,
-                            is_pattern_partial: false,
-                        })
+                    ac.ac.find(input).filter(|m| m.start() == 0).map(|m| Match {
+                        start: 0,
+                        end: m.end() / CHAR_LEN,
+                        is_pattern_partial: false,
+                    })
                 }
             }
             // TODO: Use regex-automata's anchored searches?
@@ -161,6 +185,31 @@ mod tests {
         let matcher = AsciiMatcher::<1>::builder(b"abc")
             .case_insensitive(true)
             .ends_with(false)
+            .build();
+        assert!(matcher.is_match(b"abc"));
+        assert!(!matcher.is_match(b"ab"));
+        assert!(matcher.is_match(b"abcd"));
+        assert!(matcher.is_match(b"ABC"));
+        assert!(matcher.is_match(b"xyzabc"));
+        assert!(!matcher.is_match(b"xyzab"));
+    }
+
+    #[test]
+    fn starts_with() {
+        let matcher = AsciiMatcher::<1>::builder(b"abc")
+            .case_insensitive(true)
+            .starts_with(true)
+            .build();
+        assert!(matcher.is_match(b"abc"));
+        assert!(!matcher.is_match(b"ab"));
+        assert!(matcher.is_match(b"abcd"));
+        assert!(matcher.is_match(b"ABC"));
+        assert!(!matcher.is_match(b"xyzabc"));
+        assert!(!matcher.is_match(b"xyzab"));
+
+        let matcher = AsciiMatcher::<1>::builder(b"abc")
+            .case_insensitive(true)
+            .starts_with(false)
             .build();
         assert!(matcher.is_match(b"abc"));
         assert!(!matcher.is_match(b"ab"));

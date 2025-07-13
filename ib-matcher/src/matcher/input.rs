@@ -13,6 +13,9 @@ where
     pub(crate) haystack: &'h HaystackStr,
     // #[builder(default = haystack.is_ascii())]
     // pub(crate) is_ascii: bool,
+    /// The haystack does not include the real start of the haystack. Akin to POSIX `REG_NOTBOL` and PCRE `PCRE_NOTBOL`.
+    #[builder(default = false)]
+    pub(crate) no_start: bool,
 }
 
 impl<'h, HaystackStr> From<&'h HaystackStr> for Input<'h, HaystackStr>
@@ -22,6 +25,9 @@ where
     #[inline]
     fn from(haystack: &'h HaystackStr) -> Self {
         // Input::builder(haystack).build()
-        Input { haystack }
+        Input {
+            haystack,
+            no_start: false,
+        }
     }
 }

@@ -60,6 +60,7 @@ where
     _pattern_string_lowercase: String,
 
     min_haystack_len: usize,
+    starts_with: bool,
     ends_with: bool,
 
     case_insensitive: bool,
@@ -96,6 +97,9 @@ where
         #[builder(default = false)]
         is_pattern_partial: bool,
 
+        /// Only matches if the haystack starts with the pattern.
+        #[builder(default = false)]
+        starts_with: bool,
         /// Only matches if the haystack ends with the pattern.
         #[builder(default = false)]
         ends_with: bool,
@@ -176,6 +180,7 @@ where
         // ASCII-only haystack optimization
         let ascii = AsciiMatcher::builder(&pattern_bytes)
             .case_insensitive(case_insensitive)
+            .starts_with(starts_with)
             .ends_with(ends_with)
             .build();
 
@@ -183,6 +188,7 @@ where
             ascii,
 
             min_haystack_len,
+            starts_with,
             ends_with,
 
             pattern,
@@ -212,6 +218,11 @@ where
         HaystackStr: 'h,
     {
         let input = input.into();
+
+        if self.starts_with && input.no_start {
+            return None;
+        }
+
         let is_ascii = input.haystack.is_ascii();
         self.find_with_is_ascii(input, is_ascii)
     }
@@ -221,6 +232,8 @@ where
         input: Input<'h, HaystackStr>,
         is_ascii: bool,
     ) -> Option<Match> {
+        debug_assert!(!input.no_start);
+
         if self.pattern.is_empty() {
             return Some(Match {
                 start: 0,
@@ -246,6 +259,9 @@ where
                     is_pattern_partial: submatch.is_pattern_partial,
                 });
             }
+            if self.starts_with {
+                break;
+            }
         }
 
         None
@@ -259,6 +275,11 @@ where
         HaystackStr: 'h,
     {
         let input = input.into();
+
+        if self.starts_with && input.no_start {
+            return false;
+        }
+
         let haystack = input.haystack;
         if haystack.is_ascii() {
             return self.ascii.is_match(haystack.as_bytes());
@@ -278,7 +299,7 @@ where
     {
         let input = input.into();
         let haystack = input.haystack;
-        if self.is_haystack_too_short(haystack) {
+        if self.is_haystack_too_short(haystack) || self.starts_with && input.no_start {
             return None;
         } else {
             if self.pattern.is_empty() {
@@ -801,5 +822,152 @@ mod test {
         assert_match!(matcher.find("凯尔1"), None);
         // AsciiFirstLetter is preferred
         assert_match!(matcher.find("柯尔1"), None);
+    }
+
+    #[test]
+    fn starts_with() {
+        let matcher = IbMatcher::builder("xing")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .build();
+        assert_match!(matcher.test(""), None);
+        assert_match!(matcher.test("xing"), Some((0, 4)));
+        assert_match!(matcher.test("XiNG"), Some((0, 4)));
+        assert_match!(matcher.test("行"), Some((0, 3)));
+
+        assert_match!(matcher.find("xing1"), Some((0, 4)));
+        assert_match!(matcher.find("XiNG1"), Some((0, 4)));
+        assert_match!(matcher.find("行1"), Some((0, 3)));
+        assert_match!(matcher.test("1xing"), None);
+        assert_match!(matcher.test("1XiNG"), None);
+        assert_match!(matcher.test("1行"), None);
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), None);
+
+        assert_match!(matcher.find("ke1"), Some((0, 2)));
+        assert_match!(matcher.find("科1"), Some((0, 3)));
+        assert_match!(matcher.find("k鹅1"), Some((0, 4)));
+        assert_match!(matcher.test("1ke"), None);
+        assert_match!(matcher.test("1科"), None);
+        assert_match!(matcher.test("1k鹅"), None);
+
+        let matcher = IbMatcher::builder("")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .build();
+        assert_match!(matcher.test(""), Some((0, 0)));
+        assert_match!(matcher.test("abc"), Some((0, 0)));
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .starts_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), Some((0, 6)));
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.test("柯尔"), Some((0, 6)));
+
+        assert_match!(matcher.find("ke1"), Some((0, 2)));
+        assert_match!(matcher.find("科1"), Some((0, 3)));
+        assert_match!(matcher.find("k鹅1"), Some((0, 4)));
+        assert_match!(matcher.find("凯尔1"), Some((0, 6)));
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("柯尔1"), Some((0, 6)));
+
+        assert_match!(matcher.find("1ke"), None);
+        assert_match!(matcher.find("1科"), None);
+        assert_match!(matcher.find("1k鹅"), None);
+        assert_match!(matcher.find("1凯尔"), None);
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("1柯尔"), None);
+
+        assert_match!(
+            matcher.find(Input::builder("柯尔1").no_start(true).build()),
+            None
+        );
+    }
+
+    #[test]
+    fn starts_ends_with() {
+        let matcher = IbMatcher::builder("xing")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test(""), None);
+        assert_match!(matcher.test("xing"), Some((0, 4)));
+        assert_match!(matcher.test("XiNG"), Some((0, 4)));
+        assert_match!(matcher.test("行"), Some((0, 3)));
+
+        assert_match!(matcher.find("xing1"), None);
+        assert_match!(matcher.find("XiNG1"), None);
+        assert_match!(matcher.find("行1"), None);
+        assert_match!(matcher.test("1xing"), None);
+        assert_match!(matcher.test("1XiNG"), None);
+        assert_match!(matcher.test("1行"), None);
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), None);
+
+        assert_match!(matcher.find("ke1"), None);
+        assert_match!(matcher.find("科1"), None);
+        assert_match!(matcher.find("k鹅1"), None);
+        assert_match!(matcher.test("1ke"), None);
+        assert_match!(matcher.test("1科"), None);
+        assert_match!(matcher.test("1k鹅"), None);
+
+        let matcher = IbMatcher::builder("")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .starts_with(true)
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test(""), Some((0, 0)));
+        assert_match!(matcher.test("abc"), Some((0, 0)));
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .starts_with(true)
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), Some((0, 6)));
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.test("柯尔"), Some((0, 6)));
+
+        assert_match!(matcher.find("ke1"), None);
+        assert_match!(matcher.find("科1"), None);
+        assert_match!(matcher.find("k鹅1"), None);
+        assert_match!(matcher.find("凯尔1"), None);
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("柯尔1"), None);
+
+        assert_match!(matcher.find("1ke"), None);
+        assert_match!(matcher.find("1科"), None);
+        assert_match!(matcher.find("1k鹅"), None);
+        assert_match!(matcher.find("1凯尔"), None);
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("1柯尔"), None);
     }
 }
