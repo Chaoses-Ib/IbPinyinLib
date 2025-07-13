@@ -59,6 +59,7 @@ where
     _pattern_string_lowercase: String,
 
     min_haystack_len: usize,
+    ends_with: bool,
 
     case_insensitive: bool,
 
@@ -93,6 +94,10 @@ where
         /// For example, pattern "pinyi" can match "拼音" (whose pinyin is "pinyin") if `is_pattern_partial` is `true`.
         #[builder(default = false)]
         is_pattern_partial: bool,
+
+        /// Only matches if the haystack ends with the pattern.
+        #[builder(default = false)]
+        ends_with: bool,
 
         #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
@@ -170,12 +175,14 @@ where
         // ASCII-only haystack optimization
         let ascii = AsciiMatcher::builder(&pattern_bytes)
             .case_insensitive(case_insensitive)
+            .ends_with(ends_with)
             .build();
 
         Self {
             ascii,
 
             min_haystack_len,
+            ends_with,
 
             pattern,
             _pattern_string: pattern_string,
@@ -216,6 +223,7 @@ where
             return self.ascii.find(haystack.as_bytes()).div(HaystackStr::CHAR);
         }
 
+        // TODO: ends_with optimization
         for (i, _c, str) in haystack.char_index_strs() {
             if self.is_haystack_too_short(str) {
                 break;
@@ -311,6 +319,7 @@ where
             // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
             return if pattern_next.is_empty() {
                 Some(SubMatch::new(matched_len_next, false))
+                    .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty())
             } else {
                 self.sub_test(pattern_next, haystack_next, matched_len_next)
             };
@@ -470,11 +479,19 @@ where
                 _ => unreachable!(),
             } && pinyin.starts_with(pattern_s)
             {
-                return (true, Some(SubMatch::new(matched_len_next, true)));
+                return (
+                    true,
+                    Some(SubMatch::new(matched_len_next, true))
+                        .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty()),
+                );
             }
         } else if pattern_s.starts_with(pinyin) {
             if pattern_s.len() == pinyin.len() {
-                return (true, Some(SubMatch::new(matched_len_next, false)));
+                return (
+                    true,
+                    Some(SubMatch::new(matched_len_next, false))
+                        .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty()),
+                );
             }
 
             if let Some(submatch) = self.sub_test(
@@ -694,5 +711,74 @@ mod test {
             .build();
         assert_match(matcher.find(""), Some((0, 0)));
         assert_match(matcher.find("abc"), Some((0, 0)));
+    }
+
+    #[test]
+    fn ends_with() {
+        let matcher = IbMatcher::builder("xing")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test(""), None);
+        assert_match!(matcher.test("xing"), Some((0, 4)));
+        assert_match!(matcher.test("XiNG"), Some((0, 4)));
+        assert_match!(matcher.test("行"), Some((0, 3)));
+
+        assert_match!(matcher.find("1xing"), Some((1, 4)));
+        assert_match!(matcher.find("1XiNG"), Some((1, 4)));
+        assert_match!(matcher.find("1行"), Some((1, 3)));
+        assert_match!(matcher.test("xing1"), None);
+        assert_match!(matcher.test("XiNG1"), None);
+        assert_match!(matcher.test("行1"), None);
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), None);
+
+        assert_match!(matcher.find("1ke"), Some((1, 2)));
+        assert_match!(matcher.find("1科"), Some((1, 3)));
+        assert_match!(matcher.find("1k鹅"), Some((1, 4)));
+        assert_match!(matcher.test("ke1"), None);
+        assert_match!(matcher.test("科1"), None);
+        assert_match!(matcher.test("k鹅1"), None);
+
+        let matcher = IbMatcher::builder("")
+            .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test(""), Some((0, 0)));
+        assert_match!(matcher.test("abc"), Some((0, 0)));
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .ends_with(true)
+            .build();
+        assert_match!(matcher.test("ke"), Some((0, 2)));
+        assert_match!(matcher.test("科"), Some((0, 3)));
+        assert_match!(matcher.test("k鹅"), Some((0, 4)));
+        assert_match!(matcher.test("凯尔"), Some((0, 6)));
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.test("柯尔"), Some((0, 6)));
+
+        assert_match!(matcher.find("1ke"), Some((1, 2)));
+        assert_match!(matcher.find("1科"), Some((1, 3)));
+        assert_match!(matcher.find("1k鹅"), Some((1, 4)));
+        assert_match!(matcher.find("1凯尔"), Some((1, 6)));
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("1柯尔"), Some((1, 6)));
+
+        assert_match!(matcher.find("ke1"), None);
+        assert_match!(matcher.find("科1"), None);
+        assert_match!(matcher.find("k鹅1"), None);
+        assert_match!(matcher.find("凯尔1"), None);
+        // AsciiFirstLetter is preferred
+        assert_match!(matcher.find("柯尔1"), None);
     }
 }
