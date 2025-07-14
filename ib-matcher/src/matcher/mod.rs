@@ -232,7 +232,7 @@ where
         input: Input<'h, HaystackStr>,
         is_ascii: bool,
     ) -> Option<Match> {
-        debug_assert!(!input.no_start);
+        debug_assert!(!(self.starts_with && input.no_start));
 
         if self.pattern.is_empty() {
             return Some(Match {
@@ -895,6 +895,16 @@ mod test {
         assert_match!(
             matcher.find(Input::builder("柯尔1").no_start(true).build()),
             None
+        );
+
+        let matcher = IbMatcher::builder("ke")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .build();
+        assert_match!(
+            matcher.find(Input::builder("柯尔1").no_start(true).build()),
+            Some((0, 6))
         );
     }
 
