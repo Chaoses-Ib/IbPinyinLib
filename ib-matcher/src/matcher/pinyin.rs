@@ -4,6 +4,22 @@ use bon::{bon, builder, Builder};
 
 use crate::pinyin::{PinyinData, PinyinNotation};
 
+/// ## Performance
+/// To avoid initialization cost, you should share one `data` across all configs by either passing `&data`:
+/// ```
+/// use ib_matcher::{matcher::PinyinMatchConfig, pinyin::{PinyinData, PinyinNotation}};
+///
+/// let data = PinyinData::new(PinyinNotation::Ascii);
+/// let config = PinyinMatchConfig::builder(PinyinNotation::Ascii).data(&data).build();
+/// let config2 = PinyinMatchConfig::builder(PinyinNotation::Ascii).data(&data).build();
+/// ```
+/// Or using `shallow_clone()`:
+/// ```
+/// use ib_matcher::{matcher::PinyinMatchConfig, pinyin::PinyinNotation};
+///
+/// let config = PinyinMatchConfig::notations(PinyinNotation::Ascii);
+/// let config2 = config.shallow_clone();
+/// ```
 #[derive(Builder, Clone)]
 pub struct PinyinMatchConfig<'a> {
     #[builder(start_fn)]
@@ -28,6 +44,16 @@ impl<'a> PinyinMatchConfig<'a> {
     /// Use [`PinyinMatchConfigBuilder`] for more options.
     pub fn notations(notations: PinyinNotation) -> Self {
         Self::builder(notations).build()
+    }
+
+    /// See [`PinyinMatchConfig`].
+    pub fn shallow_clone(&'a self) -> Self {
+        Self {
+            notations: self.notations,
+            data: Cow::Borrowed(self.data.as_ref()),
+            case_insensitive: self.case_insensitive,
+            allow_partial_pattern: self.allow_partial_pattern,
+        }
     }
 }
 

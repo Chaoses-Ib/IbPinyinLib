@@ -3,6 +3,22 @@ use std::borrow::Cow;
 use bon::Builder;
 use ib_romaji::HepburnRomanizer;
 
+/// ## Performance
+/// To avoid initialization cost, you should share one `romanizer` across all configs by either passing `&romanizer`:
+/// ```
+/// use ib_matcher::{matcher::RomajiMatchConfig, romaji::HepburnRomanizer};
+///
+/// let romanizer = HepburnRomanizer::default();
+/// let config = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+/// let config2 = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+/// ```
+/// Or using `shallow_clone()`:
+/// ```
+/// use ib_matcher::matcher::RomajiMatchConfig;
+///
+/// let config = RomajiMatchConfig::default();
+/// let config2 = config.shallow_clone();
+/// ```
 #[derive(Builder, Clone)]
 pub struct RomajiMatchConfig<'a> {
     /// Default: `new()` on [`RomajiMatchConfigBuilder::build()`]
@@ -22,6 +38,17 @@ impl Default for RomajiMatchConfig<'_> {
     /// Use [`RomajiMatchConfigBuilder`] for more options.
     fn default() -> Self {
         Self::builder().build()
+    }
+}
+
+impl<'a> RomajiMatchConfig<'a> {
+    /// See [`RomajiMatchConfig`].
+    pub fn shallow_clone(&'a self) -> RomajiMatchConfig<'a> {
+        Self {
+            romanizer: Cow::Borrowed(self.romanizer.as_ref()),
+            case_insensitive: self.case_insensitive,
+            allow_partial_pattern: self.allow_partial_pattern,
+        }
     }
 }
 
