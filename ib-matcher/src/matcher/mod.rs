@@ -20,6 +20,7 @@ mod pinyin;
 #[cfg(feature = "romaji")]
 mod romaji;
 
+pub use ascii::{PlainMatchConfig, PlainMatchConfigBuilder};
 pub use matches::{Match, OptionMatchExt};
 #[cfg(feature = "pinyin")]
 pub use pinyin::*;
@@ -63,9 +64,7 @@ where
     starts_with: bool,
     ends_with: bool,
 
-    case_insensitive: bool,
-
-    plain: bool,
+    plain: Option<PlainMatchConfig>,
     #[cfg(feature = "pinyin")]
     pinyin: Option<PinyinMatcher<'a>>,
     #[cfg(feature = "romaji")]
@@ -88,10 +87,6 @@ where
         analyze: bool,
         analyze_config: Option<analyze::PatternAnalyzeConfig>,
 
-        /// The case insensitivity of pinyin is controlled by [`PinyinMatchConfigBuilder::case_insensitive`].
-        #[builder(default = true)]
-        case_insensitive: bool,
-
         /// If `true`, the pattern can match pinyins/romajis starting with the ending of the pattern.
         ///
         /// For example, pattern "pinyi" can match "拼音" (whose pinyin is "pinyin") if `is_pattern_partial` is `true`.
@@ -105,11 +100,11 @@ where
         #[builder(default = false)]
         ends_with: bool,
 
-        /// Do not match characters in the pattern as plain characters, i.e. match them only as pinyin/romaji, even if they are not valid pinyin/romaji characters.
+        /// `None` means not to match characters in the pattern as plain characters, i.e. match them only as pinyin/romaji, even if they are not valid pinyin/romaji characters.
         ///
         /// Note empty pattern always match everything.
-        #[builder(default = false)]
-        no_plain: bool,
+        #[builder(required, default = Some(PlainMatchConfig::builder().build()))]
+        plain: Option<PlainMatchConfig>,
         #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
     ) -> Self {
@@ -185,10 +180,9 @@ where
 
         // ASCII-only haystack optimization
         let ascii = AsciiMatcher::builder(&pattern_bytes)
-            .case_insensitive(case_insensitive)
+            .maybe_plain(plain.as_ref())
             .starts_with(starts_with)
             .ends_with(ends_with)
-            .no_plain(no_plain)
             .build();
 
         Self {
@@ -202,9 +196,7 @@ where
             _pattern_string: pattern_string,
             _pattern_string_lowercase: pattern_string_lowercase,
 
-            case_insensitive,
-
-            plain: !no_plain,
+            plain,
 
             #[cfg(feature = "pinyin")]
             pinyin,
@@ -363,19 +355,19 @@ where
 
         let (pattern_c, pattern_next) = pattern.split_first().unwrap();
 
-        if self.plain
-            && match self.case_insensitive {
+        if let Some(plain) = &self.plain {
+            if match plain.case_insensitive {
                 true => haystack_c.to_mono_lowercase() == pattern_c.c_lowercase,
                 false => haystack_c == pattern_c.c,
+            } {
+                // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
+                return if pattern_next.is_empty() {
+                    Some(SubMatch::new(matched_len_next, false))
+                        .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty())
+                } else {
+                    self.sub_test(pattern_next, haystack_next, matched_len_next)
+                };
             }
-        {
-            // If haystack_c == pattern_c, then it is impossible that pattern_c is a pinyin letter and haystack_c is a hanzi.
-            return if pattern_next.is_empty() {
-                Some(SubMatch::new(matched_len_next, false))
-                    .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty())
-            } else {
-                self.sub_test(pattern_next, haystack_next, matched_len_next)
-            };
         }
 
         // Fast fail optimization
@@ -584,6 +576,24 @@ where
     }
 }
 
+impl<'a, 'f1, HaystackStr, S: ib_matcher_builder::State> IbMatcherBuilder<'a, 'f1, HaystackStr, S>
+where
+    HaystackStr: EncodedStr + ?Sized,
+{
+    /// A convenient setter for [`PlainMatchConfigBuilder::case_insensitive`].
+    ///
+    /// The case insensitivity of pinyin is controlled by [`PinyinMatchConfigBuilder::case_insensitive`].
+    pub fn case_insensitive(
+        self,
+        case_insensitive: bool,
+    ) -> IbMatcherBuilder<'a, 'f1, HaystackStr, ib_matcher_builder::SetPlain<S>>
+    where
+        S::Plain: ib_matcher_builder::IsUnset,
+    {
+        self.plain(PlainMatchConfig::case_insensitive(case_insensitive))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::pinyin::PinyinNotation;
@@ -713,7 +723,7 @@ mod test {
         assert_match(matcher.test("行"), Some((0, 3)));
 
         let matcher = IbMatcher::builder("XING")
-            .case_insensitive(true)
+            .plain(PlainMatchConfig::case_insensitive(true))
             .pinyin(
                 PinyinMatchConfig::builder(PinyinNotation::Ascii)
                     .case_insensitive(false)
@@ -725,7 +735,7 @@ mod test {
         assert_match(matcher.test("行"), None);
 
         let matcher = IbMatcher::builder("XING")
-            .case_insensitive(true)
+            .plain(PlainMatchConfig::case_insensitive(true))
             .pinyin(
                 PinyinMatchConfig::builder(PinyinNotation::Ascii)
                     .case_insensitive(true)
@@ -737,7 +747,7 @@ mod test {
         assert_match(matcher.test("行"), Some((0, 3)));
 
         let matcher = IbMatcher::builder("XiNG")
-            .case_insensitive(false)
+            .plain(PlainMatchConfig::case_insensitive(false))
             .pinyin(
                 PinyinMatchConfig::builder(PinyinNotation::Ascii)
                     .case_insensitive(true)
@@ -752,7 +762,7 @@ mod test {
     #[test]
     fn test_no_plain() {
         let matcher = IbMatcher::builder("xing")
-            .no_plain(true)
+            .plain(None)
             .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(""), None);
@@ -761,7 +771,7 @@ mod test {
         assert_match(matcher.test("行"), Some((0, 3)));
 
         let matcher = IbMatcher::builder("ke")
-            .no_plain(true)
+            .plain(None)
             .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test("ke"), None);
@@ -770,14 +780,14 @@ mod test {
         assert_match(matcher.test("凯尔"), None);
 
         let matcher = IbMatcher::builder("")
-            .no_plain(true)
+            .plain(None)
             .pinyin(PinyinMatchConfig::notations(PinyinNotation::Ascii))
             .build();
         assert_match(matcher.test(""), Some((0, 0)));
         assert_match(matcher.test("abc"), Some((0, 0)));
 
         let matcher = IbMatcher::builder("ke")
-            .no_plain(true)
+            .plain(None)
             .pinyin(PinyinMatchConfig::notations(
                 PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
             ))

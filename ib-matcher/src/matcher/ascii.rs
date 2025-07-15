@@ -1,7 +1,21 @@
 use aho_corasick::{Anchored, Input, StartKind};
-use bon::bon;
+use bon::{bon, Builder};
 
 use crate::matcher::Match;
+
+/// Note [`PlainMatchConfigBuilder::case_insensitive`] is `true` by default, unlike [`PinyinMatchConfigBuilder`] and [`RomajiMatchConfigBuilder`].
+#[derive(Builder, Clone)]
+pub struct PlainMatchConfig {
+    /// The case insensitivity of pinyin is controlled by [`PinyinMatchConfigBuilder::case_insensitive`].
+    #[builder(default = true)]
+    pub(crate) case_insensitive: bool,
+}
+
+impl PlainMatchConfig {
+    pub(crate) fn case_insensitive(case_insensitive: bool) -> Option<Self> {
+        Some(Self { case_insensitive })
+    }
+}
 
 /// For ASCII-only haystack optimization.
 pub enum AsciiMatcher<const CHAR_LEN: usize = 1> {
@@ -44,13 +58,12 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
     #[builder]
     pub fn new(
         #[builder(start_fn)] pattern: &[u8],
-        #[builder(default = false)] case_insensitive: bool,
+        plain: Option<&PlainMatchConfig>,
         #[builder(default = false)] starts_with: bool,
         #[builder(default = false)] ends_with: bool,
-        #[builder(default = false)] no_plain: bool,
     ) -> Self {
-        match !no_plain && pattern.is_ascii() {
-            true => {
+        match plain.filter(|_| pattern.is_ascii()) {
+            Some(plain) => {
                 // regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(pattern))
                 //     .unicode(false)
                 //     .case_insensitive(case_insensitive)
@@ -58,7 +71,7 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                 //     .unwrap(),
                 Ac(AcMatcher {
                     ac: aho_corasick::AhoCorasick::builder()
-                        .ascii_case_insensitive(case_insensitive)
+                        .ascii_case_insensitive(plain.case_insensitive)
                         .start_kind(if starts_with {
                             StartKind::Anchored
                         } else {
@@ -70,7 +83,7 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
                     ends_with,
                 })
             }
-            false => Fail,
+            None => Fail,
         }
     }
 
@@ -171,7 +184,7 @@ mod tests {
     #[test]
     fn ends_with() {
         let matcher = AsciiMatcher::<1>::builder(b"abc")
-            .case_insensitive(true)
+            .maybe_plain(PlainMatchConfig::case_insensitive(true).as_ref())
             .ends_with(true)
             .build();
         assert!(matcher.is_match(b"abc"));
@@ -184,7 +197,7 @@ mod tests {
         assert!(!matcher.is_match(b"xyzab"));
 
         let matcher = AsciiMatcher::<1>::builder(b"abc")
-            .case_insensitive(true)
+            .maybe_plain(PlainMatchConfig::case_insensitive(true).as_ref())
             .ends_with(false)
             .build();
         assert!(matcher.is_match(b"abc"));
@@ -198,7 +211,7 @@ mod tests {
     #[test]
     fn starts_with() {
         let matcher = AsciiMatcher::<1>::builder(b"abc")
-            .case_insensitive(true)
+            .maybe_plain(PlainMatchConfig::case_insensitive(true).as_ref())
             .starts_with(true)
             .build();
         assert!(matcher.is_match(b"abc"));
@@ -209,7 +222,7 @@ mod tests {
         assert!(!matcher.is_match(b"xyzab"));
 
         let matcher = AsciiMatcher::<1>::builder(b"abc")
-            .case_insensitive(true)
+            .maybe_plain(PlainMatchConfig::case_insensitive(true).as_ref())
             .starts_with(false)
             .build();
         assert!(matcher.is_match(b"abc"));
