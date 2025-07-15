@@ -47,8 +47,9 @@ impl<const CHAR_LEN: usize> AsciiMatcher<CHAR_LEN> {
         #[builder(default = false)] case_insensitive: bool,
         #[builder(default = false)] starts_with: bool,
         #[builder(default = false)] ends_with: bool,
+        #[builder(default = false)] no_plain: bool,
     ) -> Self {
-        match pattern.is_ascii() {
+        match !no_plain && pattern.is_ascii() {
             true => {
                 // regex::bytes::RegexBuilder::new(&regex_utils::escape_bytes(pattern))
                 //     .unicode(false)
