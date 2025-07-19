@@ -819,6 +819,8 @@ mod test {
 
     #[test]
     fn mix_lang() {
+        let pinyin =
+            PinyinMatchConfig::notations(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter);
         let romanizer = Default::default();
         let romaji = RomajiMatchConfig::builder().romanizer(&romanizer).build();
 
@@ -857,6 +859,28 @@ mod test {
             .build();
         // shi rai mu
         assert_match!(matcher.find("持續狩獵史萊姆三百年"), Some((12, 9)));
+
+        let matcher = IbMatcher::builder("hatsuneouda")
+            .pinyin(pinyin.shallow_clone())
+            .romaji(romaji.shallow_clone())
+            .analyze(true)
+            .build();
+        // hatsune ou da (ki yo yo)
+        assert_match!(matcher.find("初音殴打喜羊羊.gif"), Some((0, 12)));
+        let matcher = IbMatcher::builder("hatsuneoudaxi")
+            .pinyin(pinyin.shallow_clone())
+            .romaji(romaji.shallow_clone())
+            .build();
+        assert_match!(matcher.find("初音殴打喜羊羊.gif"), None);
+        let matcher = IbMatcher::builder("hatsuneodxyy")
+            .pinyin(pinyin.shallow_clone())
+            .romaji(romaji.shallow_clone())
+            .mix_lang(true)
+            .analyze(true)
+            .is_pattern_partial(true)
+            .build();
+        // hatsune odxyy
+        assert_match!(matcher.find("初音殴打喜羊羊.gif"), Some((0, 21)));
     }
 
     #[test]
