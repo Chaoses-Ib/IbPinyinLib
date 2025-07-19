@@ -17,7 +17,7 @@ use daachorse::{CharwiseDoubleArrayAhoCorasick, CharwiseDoubleArrayAhoCorasickBu
 
 use ib_unicode::str::RoundCharBoundaryExt;
 
-mod data;
+pub mod data;
 
 /// [Hepburn romanization](https://en.wikipedia.org/wiki/Hepburn_romanization)
 #[derive(Clone)]
@@ -236,6 +236,18 @@ mod tests {
             .max()
             .unwrap();
         assert_eq!(data::kana::KANA_MAX_LEN, max_len);
+
+        let max_len = data::kana::HEPBURN_ROMAJIS
+            .iter()
+            .inspect(|romaji| {
+                if romaji.len() == data::kana::KANA_ROMAJI_MAX_LEN {
+                    println!("{}", romaji);
+                }
+            })
+            .map(|s| s.len())
+            .max()
+            .unwrap();
+        assert_eq!(data::kana::KANA_ROMAJI_MAX_LEN, max_len);
     }
 
     #[test]
@@ -280,6 +292,7 @@ mod tests {
         let romanizer = HepburnRomanizer::builder().kana(true).build();
 
         let mut dup_count = 0;
+        let mut romaji_max_len = 0;
 
         let kanjidic = fs::read_to_string("data/kanjidic.csv").unwrap();
         let mut out_kanjis = fs::File::create("src/data/kanjis.rs").unwrap();
@@ -310,6 +323,21 @@ mod tests {
                 dup_count += 1;
             }
 
+            assert!(
+                data::KANJI_LEN.contains(&kanji.len()),
+                "{kanji} {}",
+                kanji.len()
+            );
+            {
+                let max_len = kanas_set.iter().map(|s| s.len()).max().unwrap();
+                if max_len > romaji_max_len {
+                    romaji_max_len = max_len;
+                }
+                if max_len == data::KANJI_ROMAJI_MAX_LEN {
+                    println!("Max len romaji: {kanji} {kanas_set:?}");
+                }
+            }
+
             write!(
                 out_kanjis,
                 "&[{}],",
@@ -328,6 +356,8 @@ mod tests {
         write!(out_kanjis, "_ => &[]\n}}").unwrap();
 
         println!("Kanjis with duplicated romajis: {dup_count}");
+        println!("Romaji max len: {romaji_max_len}");
+        assert_eq!(romaji_max_len, data::KANJI_ROMAJI_MAX_LEN);
     }
 
     /// `codegen_kanji()` should be run first.
@@ -345,6 +375,7 @@ mod tests {
         let mut diff_romanizable_count = 0;
         let mut unromanizable_count = 0;
         let mut max_len = 0;
+        let mut romaji_max_len = 0;
 
         let jmdict = fs::read_to_string("data/jmdict.csv").unwrap();
         let mut out_words = fs::File::create("src/data/words.in.txt").unwrap();
@@ -416,6 +447,18 @@ mod tests {
             if word.len() > max_len {
                 max_len = word.len();
             }
+            if word.len() == data::WORD_MAX_LEN {
+                println!("Max len word: {word}");
+            }
+            {
+                let max_len = romajis.iter().map(|s| s.len()).max().unwrap();
+                if max_len > romaji_max_len {
+                    romaji_max_len = max_len;
+                }
+                if max_len == data::WORD_ROMAJI_MAX_LEN {
+                    println!("Max len romaji: {word} {romajis:?}");
+                }
+            }
 
             // write!(out_words, "\"{kanji}\",").unwrap();
             // if i != end {
@@ -474,6 +517,8 @@ mod tests {
         println!();
         println!("Max word length: {max_len}");
         assert_eq!(data::WORD_MAX_LEN, max_len);
+        println!("Romaji max length: {romaji_max_len}");
+        assert_eq!(data::WORD_ROMAJI_MAX_LEN, romaji_max_len);
     }
 
     #[test]

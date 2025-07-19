@@ -1,8 +1,12 @@
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
+/// i.e. ｯｳﾞｧ, ...
 pub const KANA_MAX_LEN: usize = 12;
 
-pub static HEPBURN_KANAS: &[&str] = &[
+/// i.e. kkya, ...
+pub const KANA_ROMAJI_MAX_LEN: usize = 4;
+
+pub(crate) static HEPBURN_KANAS: &[&str] = &[
 "ぁ","あ","ぃ","い","ぅ","う","ぇ","え",
 "ぉ","お","か","が","き","きゃ","きゅ","きょ",
 "ぎ","ぎゃ","ぎゅ","ぎょ","く","ぐ","け","げ",
@@ -93,7 +97,7 @@ pub static HEPBURN_KANAS: &[&str] = &[
 "\u{1b164}","\u{1b165}","\u{1b166}"
 ];
 
-pub static HEPBURN_ROMAJIS: &[&str] = &[
+pub(crate) static HEPBURN_ROMAJIS: &[&str] = &[
 "a","a","i","i","u","u","e","e",
 "o","o","ka","ga","ki","kya","kyu","kyo",
 "gi","gya","gyu","gyo","ku","gu","ke","ge",
