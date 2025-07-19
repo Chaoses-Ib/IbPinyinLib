@@ -152,6 +152,8 @@ where
         let analyzer = analyze::PatternAnalyzer::builder(pattern_s_lowercase);
         #[cfg(feature = "pinyin")]
         let analyzer = analyzer.maybe_pinyin(pinyin.as_ref());
+        #[cfg(feature = "romaji")]
+        let analyzer = analyzer.maybe_romaji(romaji.as_ref());
         let mut analyzer = analyzer.build();
         analyzer.analyze(analyze_config.unwrap_or_else(|| {
             if analyze {

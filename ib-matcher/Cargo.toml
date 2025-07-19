@@ -1,6 +1,6 @@
 [package]
 name = "ib-matcher"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.75"
 description = "A multilingual and fast string matcher, supports 拼音匹配 (Chinese pinyin match) and ローマ字検索 (Japanese romaji match)"
@@ -49,7 +49,7 @@ arraystring = { version = "0.3", optional = true }
 bitflags = { version = "2", optional = true }
 bon = "3"
 document-features = { version = "0.2", optional = true }
-ib-romaji = { version = "0.1", optional = true, path = "../ib-romaji" }
+ib-romaji = { version = "0.1.1", optional = true, path = "../ib-romaji" }
 ib-unicode = { version = "0.1", path = "../ib-unicode" }
 itertools = "0.14"
 # TODO: perf-dfa-full

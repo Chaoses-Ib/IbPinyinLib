@@ -2,6 +2,8 @@ use std::cmp::min;
 
 use bon::{bon, Builder};
 
+#[cfg(feature = "romaji")]
+use crate::matcher::RomajiMatchConfig;
 #[cfg(feature = "pinyin")]
 use crate::{
     matcher::{PinyinAnalyzeResult, PinyinMatchConfig},
@@ -36,8 +38,13 @@ pub(crate) struct PatternAnalyzer<'a> {
     #[cfg(feature = "pinyin")]
     pinyin_result: PinyinAnalyzeResult,
 
+    #[cfg(feature = "romaji")]
+    romaji: Option<&'a RomajiMatchConfig<'a>>,
+
     #[cfg(test)]
     min_haystack_chars: usize,
+    /// TODO: Per lang len when `mix_lang` is false
+    /// TODO: min_non_ascii_haystack_len
     min_haystack_len: usize,
 }
 
@@ -47,6 +54,7 @@ impl<'a> PatternAnalyzer<'a> {
     pub fn new(
         #[builder(start_fn)] pattern: &'a str,
         #[cfg(feature = "pinyin")] pinyin: Option<&'a PinyinMatchConfig<'a>>,
+        #[cfg(feature = "romaji")] romaji: Option<&'a RomajiMatchConfig<'a>>,
     ) -> Self {
         // debug_assert_eq!(pattern, pattern.to_mono_lowercase());
         // TODO: Case
@@ -56,6 +64,8 @@ impl<'a> PatternAnalyzer<'a> {
             pinyin,
             #[cfg(feature = "pinyin")]
             pinyin_result: Default::default(),
+            #[cfg(feature = "romaji")]
+            romaji,
             #[cfg(test)]
             min_haystack_chars: 0,
             min_haystack_len: 0,
@@ -73,17 +83,25 @@ impl<'a> PatternAnalyzer<'a> {
     }
 
     pub fn analyze(&mut self, config: PatternAnalyzeConfig) {
+        #[cfg(test)]
+        {
+            self.min_haystack_chars = usize::MAX;
+        }
+        self.min_haystack_len = usize::MAX;
+
+        #[cfg(feature = "romaji")]
+        if let Some(_romaji) = self.romaji {
+            // KANJI_ROMAJI_MAX_LEN is 22, word is unsure, we just give up
+            // TODO: traversal?
+            self.set_min_haystack_chars(1);
+            self.set_min_haystack_len(ib_romaji::data::MIN_LEN);
+        }
+
         if config.traversal {
             #[cfg(feature = "pinyin")]
             {
                 self.pinyin_result.used_notations = PinyinNotation::empty();
             }
-
-            #[cfg(test)]
-            {
-                self.min_haystack_chars = usize::MAX;
-            }
-            self.min_haystack_len = usize::MAX;
 
             self.sub_analyze(self.pattern, 0, 0);
         } else {
@@ -112,24 +130,18 @@ impl<'a> PatternAnalyzer<'a> {
                     }
                 }
             };
-            #[cfg(test)]
-            {
-                self.min_haystack_chars = min_haystack_chars;
-            }
-            self.min_haystack_len = min_haystack_chars;
+            self.set_min_haystack_chars(min_haystack_chars);
+            self.set_min_haystack_len(min_haystack_chars);
         }
     }
 
     fn sub_analyze(&mut self, pattern: &str, depth: usize, min_len: usize) {
         if pattern.is_empty() {
+            self.set_min_haystack_chars(depth);
+            self.set_min_haystack_len(min_len);
             #[cfg(test)]
-            if depth < self.min_haystack_chars {
-                self.min_haystack_chars = depth;
-            }
             if min_len < self.min_haystack_len {
-                #[cfg(test)]
                 println!("{}min_haystack_len: {min_len}", " ".repeat(depth));
-                self.min_haystack_len = min_len;
             }
             return;
         }
@@ -139,6 +151,7 @@ impl<'a> PatternAnalyzer<'a> {
         #[cfg(feature = "pinyin")]
         if let Some(pinyin) = self.pinyin {
             for notation in pinyin.notations.iter() {
+                // TODO: is_pattern_partial
                 for matched in pinyin.data.match_pinyin(notation, pattern) {
                     let mut matched_single_char = false;
                     if matched.len() == 1 {
@@ -180,6 +193,7 @@ impl<'a> PatternAnalyzer<'a> {
         }
 
         // Prune the tree
+        // TODO: Optimize no_plain
         if !any_matched_single_char {
             let matched = c;
             #[cfg(test)]
@@ -194,9 +208,20 @@ impl<'a> PatternAnalyzer<'a> {
         &self.pinyin_result
     }
 
+    fn set_min_haystack_chars(&mut self, _chars: usize) {
+        #[cfg(test)]
+        {
+            self.min_haystack_chars = min(self.min_haystack_chars, _chars);
+        }
+    }
+
     #[cfg(test)]
     pub fn min_haystack_chars(&self) -> usize {
         self.min_haystack_chars
+    }
+
+    fn set_min_haystack_len(&mut self, len: usize) {
+        self.min_haystack_len = min(self.min_haystack_len, len);
     }
 
     pub fn min_haystack_len(&self) -> usize {
@@ -302,5 +327,49 @@ mod tests {
         analyzer.analyze_std();
         assert_eq!(analyzer.min_haystack_chars(), 6);
         assert_eq!(analyzer.min_haystack_len(), 7);
+    }
+
+    #[test]
+    fn min_haystack_len_romaji() {
+        let romanizer = Default::default();
+        let romaji = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+        let pinyin_data = PinyinData::new(PinyinNotation::all());
+        let pinyin =
+            PinyinMatchConfig::builder(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .data(&pinyin_data)
+                .build();
+
+        let mut analyzer = PatternAnalyzer::builder("tsutsutsutsu")
+            .romaji(&romaji)
+            .build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+
+        let mut analyzer = PatternAnalyzer::builder("tsutsutsutsu")
+            .pinyin(&pinyin)
+            .romaji(&romaji)
+            .build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+
+        let mut analyzer = PatternAnalyzer::builder("kusanomuragari")
+            .pinyin(&pinyin)
+            .romaji(&romaji)
+            .build();
+        // 丵
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 2);
     }
 }

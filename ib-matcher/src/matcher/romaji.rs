@@ -89,4 +89,29 @@ mod tests {
             .build();
         assert_match!(matcher.find("この素晴らしい世界に祝福を"), Some((0, 21)));
     }
+
+    #[test]
+    fn min_haystack_len() {
+        let romanizer = Default::default();
+        let romaji = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+
+        let matcher = IbMatcher::builder("kusanomuragari")
+            .romaji(romaji.clone())
+            .build();
+        assert_match!(matcher.test("丵"), Some((0, 3)));
+
+        let matcher = IbMatcher::builder("suraritoshitemimeyoi")
+            .romaji(romaji.clone())
+            .build();
+        assert_match!(matcher.test("娍"), Some((0, 3)));
+
+        let matcher =
+            IbMatcher::builder("shintaihappukorewofuboniukuaetekishousezaruhakounohajimenari")
+                .romaji(romaji.clone())
+                .build();
+        assert_match!(
+            matcher.test("身体髪膚これを父母に受くあえて毀傷せざるは孝の始めなり"),
+            Some((0, 81))
+        );
+    }
 }
