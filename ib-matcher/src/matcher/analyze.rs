@@ -32,6 +32,7 @@ impl Default for PatternAnalyzeConfig {
 
 pub(crate) struct PatternAnalyzer<'a> {
     pattern: &'a str,
+    is_pattern_partial: bool,
 
     #[cfg(feature = "pinyin")]
     pinyin: Option<&'a PinyinMatchConfig<'a>>,
@@ -53,6 +54,7 @@ impl<'a> PatternAnalyzer<'a> {
     #[builder]
     pub fn new(
         #[builder(start_fn)] pattern: &'a str,
+        #[builder(default = false)] is_pattern_partial: bool,
         #[cfg(feature = "pinyin")] pinyin: Option<&'a PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<&'a RomajiMatchConfig<'a>>,
     ) -> Self {
@@ -60,6 +62,7 @@ impl<'a> PatternAnalyzer<'a> {
         // TODO: Case
         Self {
             pattern,
+            is_pattern_partial,
             #[cfg(feature = "pinyin")]
             pinyin,
             #[cfg(feature = "pinyin")]
@@ -83,6 +86,13 @@ impl<'a> PatternAnalyzer<'a> {
     }
 
     pub fn analyze(&mut self, config: PatternAnalyzeConfig) {
+        #[cfg(feature = "pinyin")]
+        if let Some(pinyin) = self.pinyin {
+            // TODO: Non-partial pattern
+            self.pinyin_result.partial_pattern =
+                self.is_pattern_partial && pinyin.allow_partial_pattern;
+        }
+
         #[cfg(test)]
         {
             self.min_haystack_chars = usize::MAX;
@@ -151,8 +161,17 @@ impl<'a> PatternAnalyzer<'a> {
         #[cfg(feature = "pinyin")]
         if let Some(pinyin) = self.pinyin {
             for notation in pinyin.notations.iter() {
-                // TODO: is_pattern_partial
-                for matched in pinyin.data.match_pinyin(notation, pattern) {
+                // partial:
+                // Only pinyin > 4 bytes can make a difference on `min_haystack_len`,
+                // i.e. chong/chuai/chuan/chuang, jiong/qiong/xiong, zhong;
+                // otherwise it can't be shorter as the hanzi needs 3 bytes.
+                for (py, partial) in pinyin.data.match_pinyin_partial(
+                    notation,
+                    pattern,
+                    self.pinyin_result.partial_pattern,
+                ) {
+                    let matched = if partial { pattern } else { py };
+
                     let mut matched_single_char = false;
                     if matched.len() == 1 {
                         matched_single_char = true;
@@ -173,6 +192,7 @@ impl<'a> PatternAnalyzer<'a> {
                     self.pinyin_result.used_notations |= notation;
 
                     // `MAX_RANGE` starts from 0x3007, at least 3 bytes
+                    // `c.len_utf8()` for pruning the tree with `any_matched_single_char`
                     let min_len = min_len
                         + if matched_single_char {
                             min(3, c.len_utf8())
@@ -182,9 +202,10 @@ impl<'a> PatternAnalyzer<'a> {
 
                     #[cfg(test)]
                     println!(
-                        "{}{matched} {:X} min_len={min_len} single={matched_single_char}",
+                        "{}{py} {:X} min_len={min_len} single={matched_single_char}{}",
                         " ".repeat(depth),
-                        notation.bits()
+                        notation.bits(),
+                        if partial { " partial" } else { "" }
                     );
 
                     self.sub_analyze(&pattern[matched.len()..], depth + 1, min_len);
@@ -302,6 +323,14 @@ mod tests {
                 .data(&pinyin_data)
                 .build();
 
+        let mut analyzer = PatternAnalyzer::builder("pinyi").pinyin(&pinyin).build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 1);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 5);
+
         let mut analyzer = PatternAnalyzer::builder("pysousuoeve")
             .pinyin(&pinyin)
             .build();
@@ -326,6 +355,80 @@ mod tests {
         assert_eq!(analyzer.min_haystack_len(), 2);
         analyzer.analyze_std();
         assert_eq!(analyzer.min_haystack_chars(), 6);
+        assert_eq!(analyzer.min_haystack_len(), 7);
+    }
+
+    #[test]
+    fn min_haystack_len_partial_pattern() {
+        let pinyin_data = PinyinData::new(PinyinNotation::all());
+        let pinyin =
+            PinyinMatchConfig::builder(PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter)
+                .data(&pinyin_data)
+                .build();
+
+        let mut analyzer = PatternAnalyzer::builder("pysswe").pinyin(&pinyin).build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 1);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 6);
+        assert_eq!(analyzer.min_haystack_len(), 6);
+
+        let mut analyzer = PatternAnalyzer::builder("pysswe")
+            .is_pattern_partial(true)
+            .pinyin(&pinyin)
+            .build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 1);
+        assert_eq!(analyzer.min_haystack_len(), 1);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 5);
+        assert_eq!(analyzer.min_haystack_len(), 6);
+
+        let mut analyzer = PatternAnalyzer::builder("pyssyon").pinyin(&pinyin).build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 6);
+        assert_eq!(analyzer.min_haystack_len(), 7);
+
+        let mut analyzer = PatternAnalyzer::builder("pyssyon")
+            .is_pattern_partial(true)
+            .pinyin(&pinyin)
+            .build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 5);
+        assert_eq!(analyzer.min_haystack_len(), 7);
+
+        let mut analyzer = PatternAnalyzer::builder("pyssyon").pinyin(&pinyin).build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 6);
+        assert_eq!(analyzer.min_haystack_len(), 7);
+
+        let mut analyzer = PatternAnalyzer::builder("pyssxion").pinyin(&pinyin).build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 7);
+        assert_eq!(analyzer.min_haystack_len(), 8);
+
+        let mut analyzer = PatternAnalyzer::builder("pyssxion")
+            .is_pattern_partial(true)
+            .pinyin(&pinyin)
+            .build();
+        analyzer.analyze_default();
+        assert_eq!(analyzer.min_haystack_chars(), 2);
+        assert_eq!(analyzer.min_haystack_len(), 2);
+        analyzer.analyze_std();
+        assert_eq!(analyzer.min_haystack_chars(), 5);
         assert_eq!(analyzer.min_haystack_len(), 7);
     }
 

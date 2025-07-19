@@ -149,7 +149,8 @@ where
             pinyin.data.init_notations(pinyin.notations);
         }
 
-        let analyzer = analyze::PatternAnalyzer::builder(pattern_s_lowercase);
+        let analyzer = analyze::PatternAnalyzer::builder(pattern_s_lowercase)
+            .is_pattern_partial(is_pattern_partial);
         #[cfg(feature = "pinyin")]
         let analyzer = analyzer.maybe_pinyin(pinyin.as_ref());
         #[cfg(feature = "romaji")]
@@ -182,7 +183,6 @@ where
         let pinyin = pinyin.map(|config| {
             PinyinMatcher::builder(config)
                 .analyze(pinyin_analyze)
-                .is_pattern_partial(is_pattern_partial)
                 .build()
         });
 

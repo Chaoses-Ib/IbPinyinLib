@@ -61,12 +61,14 @@ impl<'a> PinyinMatchConfig<'a> {
 pub(crate) struct PinyinAnalyzeResult {
     /// - If [`PinyinNotation::Ascii`] and [`PinyinNotation::AsciiFirstLetter`] are both enabled, [`PinyinNotation::Ascii`] is only considered used if the pattern uses any non-single-letter pinyin from [`PinyinNotation::Ascii`].
     pub used_notations: PinyinNotation,
+    pub partial_pattern: bool,
 }
 
 impl Default for PinyinAnalyzeResult {
     fn default() -> Self {
         Self {
             used_notations: PinyinNotation::empty(),
+            partial_pattern: false,
         }
     }
 }
@@ -97,7 +99,6 @@ impl<'a> PinyinMatcher<'a> {
     pub fn new(
         #[builder(start_fn)] config: PinyinMatchConfig<'a>,
         analyze: PinyinAnalyzeResult,
-        is_pattern_partial: bool,
     ) -> Self {
         let used_notations = analyze.used_notations;
 
@@ -140,7 +141,7 @@ impl<'a> PinyinMatcher<'a> {
         }
 
         Self {
-            partial_pattern: is_pattern_partial && config.allow_partial_pattern,
+            partial_pattern: analyze.partial_pattern,
             notations_prefix_group: notations_prefix_group.into_boxed_slice(),
             notations: notations.into_boxed_slice(),
             config,

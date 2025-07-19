@@ -279,6 +279,35 @@ impl PinyinData {
             .filter(move |py| haystack.starts_with(py))
             .dedup()
     }
+
+    /// Match pinyin of the given notation in haystack, optionally allowing partial matches.
+    ///
+    /// ## Returns
+    /// `(pinyin, partial)`
+    /// - If `partial` is `true`, `haystack.len() < pinyin.len()`.
+    pub fn match_pinyin_partial<'a: 'h, 'h>(
+        &'a self,
+        notation: PinyinNotation,
+        haystack: &'h str,
+        partial: bool,
+    ) -> impl Iterator<Item = (&'a str, bool)> + 'h {
+        debug_assert_eq!(notation.bits().count_ones(), 1);
+        debug_assert!(self.inited_notations().contains(notation));
+
+        self.iter()
+            .map(move |pinyin| pinyin.notation(notation).unwrap())
+            .dedup()
+            .filter_map(move |py| {
+                if haystack.starts_with(py) {
+                    Some((py, false))
+                } else if partial && py.starts_with(haystack) {
+                    debug_assert!(haystack.len() < py.len());
+                    Some((py, true))
+                } else {
+                    None
+                }
+            })
+    }
 }
 
 pub struct Pinyin<'a> {
