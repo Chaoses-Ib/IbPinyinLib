@@ -65,6 +65,7 @@ where
     ends_with: bool,
 
     plain: Option<PlainMatchConfig>,
+    mix_lang: bool,
     #[cfg(feature = "pinyin")]
     pinyin: Option<PinyinMatcher<'a>>,
     #[cfg(feature = "romaji")]
@@ -105,6 +106,11 @@ where
         /// Note empty pattern always match everything.
         #[builder(required, default = Some(PlainMatchConfig::builder().build()))]
         plain: Option<PlainMatchConfig>,
+        /// Allow to match a haystack with mixed languages, i.e. pinyin and romaji, at the same time.
+        ///
+        /// `true` may lead to unexpected matches, especially if [`PinyinNotation::AsciiFirstLetter`] is enabled, and also lower performance.
+        #[builder(default = false)]
+        mix_lang: bool,
         #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
         #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
     ) -> Self {
@@ -198,6 +204,8 @@ where
 
             plain,
 
+            mix_lang,
+
             #[cfg(feature = "pinyin")]
             pinyin,
 
@@ -253,7 +261,7 @@ where
             if self.is_haystack_too_short(str) {
                 break;
             }
-            if let Some(submatch) = self.sub_test(&self.pattern, str, 0) {
+            if let Some(submatch) = self.sub_test::<0xFF>(&self.pattern, str, 0) {
                 return Some(Match {
                     start: i,
                     end: i + submatch.len,
@@ -316,7 +324,7 @@ where
             return self.ascii.test(haystack.as_bytes()).div(HaystackStr::CHAR);
         }
 
-        self.sub_test(&self.pattern, haystack, 0)
+        self.sub_test::<0xFF>(&self.pattern, haystack, 0)
             .map(|submatch| Match {
                 start: 0,
                 end: submatch.len,
@@ -325,10 +333,11 @@ where
     }
 
     /// ## Arguments
+    /// - `LANG`: 0xFF for any, 1 for pinyin, 2 for romaji.
     /// - `pattern`: Not empty.
     /// - `haystack`
     /// - `matched_len`: For tail-call optimization.
-    fn sub_test(
+    fn sub_test<const LANG: u8>(
         &self,
         pattern: &[PatternChar],
         haystack: &HaystackStr,
@@ -365,7 +374,7 @@ where
                     Some(SubMatch::new(matched_len_next, false))
                         .filter(|_| !self.ends_with || haystack_next.as_bytes().is_empty())
                 } else {
-                    self.sub_test(pattern_next, haystack_next, matched_len_next)
+                    self.sub_test::<0xFF>(pattern_next, haystack_next, matched_len_next)
                 };
             }
         }
@@ -377,7 +386,7 @@ where
         }
 
         #[cfg(feature = "romaji")]
-        if let Some(romaji) = &self.romaji {
+        if let Some(romaji) = self.romaji.as_ref().filter(|_| const { LANG & 2 != 0 }) {
             // const {
             //     assert!(
             //         HaystackStr::ELEMENT_LEN_BYTE == 1,
@@ -393,7 +402,7 @@ where
                 unsafe { str::from_utf8_unchecked(haystack.as_bytes()) },
                 |len, romaji| {
                     let match_len_next = matched_len + len;
-                    match self.sub_test_pinyin::<1>(
+                    match self.sub_test_pinyin::<2>(
                         pattern,
                         unsafe { haystack.get_unchecked_from(len..) },
                         match_len_next,
@@ -412,7 +421,7 @@ where
         }
 
         #[cfg(feature = "pinyin")]
-        if let Some(matcher) = &self.pinyin {
+        if let Some(matcher) = self.pinyin.as_ref().filter(|_| const { LANG & 1 != 0 }) {
             // for pinyin in self.pinyin_data.get_pinyins(haystack_c) {
             //     for &notation in self.pinyin.notations_prefix_group.iter() {
             //         let pinyin = pinyin.notation(notation).unwrap();
@@ -443,7 +452,7 @@ where
                     .get_pinyins_and_try_for_each(haystack_c, |pinyin| {
                         for &notation in matcher.notations_prefix_group.iter() {
                             let pinyin = pinyin.notation(notation).unwrap();
-                            match self.sub_test_pinyin::<0>(
+                            match self.sub_test_pinyin::<1>(
                                 pattern,
                                 haystack_next,
                                 matched_len_next,
@@ -457,7 +466,7 @@ where
                         }
                         for &notation in matcher.notations.iter() {
                             let pinyin = pinyin.notation(notation).unwrap();
-                            match self.sub_test_pinyin::<0>(
+                            match self.sub_test_pinyin::<1>(
                                 pattern,
                                 haystack_next,
                                 matched_len_next,
@@ -480,6 +489,7 @@ where
     }
 
     /// ## Arguments
+    /// - `LANG`: 1 for pinyin, 2 for romaji.
     /// - `pattern`: Not empty.
     /// - `haystack`
     /// - `matched_len`: For tail-call optimization.
@@ -498,13 +508,13 @@ where
 
         let pattern_s = match match LANG {
             #[cfg(feature = "pinyin")]
-            0 => {
+            1 => {
                 unsafe { self.pinyin.as_ref().unwrap_unchecked() }
                     .config
                     .case_insensitive
             }
             #[cfg(feature = "romaji")]
-            1 => {
+            2 => {
                 unsafe { self.romaji.as_ref().unwrap_unchecked() }
                     .config
                     .case_insensitive
@@ -518,9 +528,9 @@ where
         if pattern_s.len() < pinyin.len() {
             if match LANG {
                 #[cfg(feature = "pinyin")]
-                0 => unsafe { self.pinyin.as_ref().unwrap_unchecked() }.partial_pattern,
+                1 => unsafe { self.pinyin.as_ref().unwrap_unchecked() }.partial_pattern,
                 #[cfg(feature = "romaji")]
-                1 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.partial_pattern,
+                2 => unsafe { self.romaji.as_ref().unwrap_unchecked() }.partial_pattern,
                 _ => unreachable!(),
             } && pinyin.starts_with(pattern_s)
             {
@@ -539,7 +549,12 @@ where
                 );
             }
 
-            if let Some(submatch) = self.sub_test(
+            if let Some(submatch) = if self.mix_lang {
+                Self::sub_test::<0xFF>
+            } else {
+                Self::sub_test::<LANG>
+            }(
+                self,
                 &pattern[pinyin.chars().count()..],
                 haystack_next,
                 matched_len_next,
@@ -798,6 +813,48 @@ mod test {
         assert_match(matcher.test("凯尔"), Some((0, 6)));
         // AsciiFirstLetter is preferred
         assert_match(matcher.test("柯尔"), Some((0, 6)));
+    }
+
+    #[test]
+    fn mix_lang() {
+        let romanizer = Default::default();
+        let romaji = RomajiMatchConfig::builder().romanizer(&romanizer).build();
+
+        let matcher = IbMatcher::builder("burua")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .romaji(romaji.clone())
+            .is_pattern_partial(true)
+            .build();
+        assert_match!(matcher.find("让这个世界变得更好"), None);
+        let matcher = IbMatcher::builder("burua")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .romaji(romaji.clone())
+            .is_pattern_partial(true)
+            .mix_lang(true)
+            .build();
+        // b uru a(ra)
+        assert_match!(matcher.find("让这个世界变得更好"), Some((15, 9)));
+
+        let matcher = IbMatcher::builder("shiraimu")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .romaji(romaji.clone())
+            .build();
+        assert_match!(matcher.find("持續狩獵史萊姆三百年"), None);
+        let matcher = IbMatcher::builder("shiraimu")
+            .pinyin(PinyinMatchConfig::notations(
+                PinyinNotation::Ascii | PinyinNotation::AsciiFirstLetter,
+            ))
+            .romaji(romaji.clone())
+            .mix_lang(true)
+            .build();
+        // shi rai mu
+        assert_match!(matcher.find("持續狩獵史萊姆三百年"), Some((12, 9)));
     }
 
     #[test]
