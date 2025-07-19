@@ -3,6 +3,9 @@ use core::ops::Range;
 
 pub mod kana;
 
+/// The minimum length of bytes that can be romanized.
+pub const MIN_LEN: usize = KANJI_MIN_LEN;
+
 pub const KANJI_MIN_LEN: usize = 2;
 pub const KANJI_MAX_LEN: usize = 4;
 pub const KANJI_LEN: Range<usize> = KANJI_MIN_LEN..KANJI_MAX_LEN+1;

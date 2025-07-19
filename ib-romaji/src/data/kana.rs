@@ -1,5 +1,6 @@
 #![cfg_attr(rustfmt, rustfmt_skip)]
 
+pub const KANA_MIN_LEN: usize = 3;
 /// i.e. ｯｳﾞｧ, ...
 pub const KANA_MAX_LEN: usize = 12;
 

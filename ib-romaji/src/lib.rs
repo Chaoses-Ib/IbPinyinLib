@@ -224,6 +224,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn min_len() {
+        let min_len = data::kana::HEPBURN_KANAS
+            .iter()
+            .inspect(|kana| {
+                if kana.len() == data::kana::KANA_MIN_LEN {
+                    println!("{}", kana);
+                }
+            })
+            .map(|s| s.len())
+            .min()
+            .unwrap();
+        assert_eq!(data::kana::KANA_MIN_LEN, min_len);
+
+        assert!(data::MIN_LEN <= data::kana::KANA_MIN_LEN);
+        assert!(data::MIN_LEN <= data::KANJI_MIN_LEN);
+    }
+
+    #[test]
     fn kana_max_len() {
         let max_len = data::kana::HEPBURN_KANAS
             .iter()
