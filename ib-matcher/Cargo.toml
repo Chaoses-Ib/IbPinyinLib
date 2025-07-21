@@ -22,6 +22,9 @@ pinyin = ["dep:arraystring", "dep:bitflags"]
 ## The dictionary will take ~5.5 MiB in the binary at the moment, much larger than pinyin's.
 romaji = ["dep:ib-romaji"]
 
+## Pattern syntax support. See [`syntax`] for details.
+syntax = []
+
 ## Enables all performance related features. This feature is enabled by default is intended to cover all reasonable features that improve performance, even if more are added in the future.
 perf = ["perf-unicode-case-map"]
 ## -37% match time, +38 KiB
@@ -62,7 +65,7 @@ widestring = { version = "1.0.2", optional = true }
 [dev-dependencies]
 criterion = "0.6"
 daachorse = "1"
-ib-matcher = { features = ["pinyin", "romaji"], path = "." }
+ib-matcher = { features = ["pinyin", "romaji", "syntax"], path = "." }
 
 [[bench]]
 name = "matcher"

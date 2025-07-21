@@ -40,6 +40,8 @@ pub mod matcher;
 pub mod minimal;
 #[cfg(feature = "pinyin")]
 pub mod pinyin;
+#[cfg(feature = "syntax")]
+pub mod syntax;
 pub mod unicode;
 
 #[cfg(feature = "romaji")]

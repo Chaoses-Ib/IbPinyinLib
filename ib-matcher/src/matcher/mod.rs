@@ -3,7 +3,13 @@ use std::marker::PhantomData;
 use bon::bon;
 
 use crate::{
-    matcher::{ascii::AsciiMatcher, encoding::EncodedStr, input::Input, matches::SubMatch},
+    matcher::{
+        ascii::AsciiMatcher,
+        encoding::EncodedStr,
+        input::Input,
+        matches::SubMatch,
+        pattern::{LangOnly, Pattern},
+    },
     unicode::{CharToMonoLowercase, StrToMonoLowercase},
 };
 
@@ -11,6 +17,7 @@ pub mod analyze;
 pub mod encoding;
 pub mod input;
 mod matches;
+pub mod pattern;
 #[cfg(feature = "regex")]
 mod regex_utils;
 
@@ -79,9 +86,10 @@ impl<'a, HaystackStr> IbMatcher<'a, HaystackStr>
 where
     HaystackStr: EncodedStr + ?Sized,
 {
+    // state_mod(vis = "pub(crate)")
     #[builder]
     pub fn new(
-        #[builder(start_fn)] pattern: &HaystackStr,
+        #[builder(start_fn, into)] pattern: Pattern<'a, HaystackStr>,
 
         /// For more advanced control over the analysis, use [`IbMatcherBuilder::analyze_config`].
         #[builder(default = false)]
@@ -105,15 +113,30 @@ where
         ///
         /// Note empty pattern always match everything.
         #[builder(required, default = Some(PlainMatchConfig::builder().build()))]
-        plain: Option<PlainMatchConfig>,
+        mut plain: Option<PlainMatchConfig>,
         /// Allow to match a haystack with mixed languages, i.e. pinyin and romaji, at the same time.
         ///
         /// `true` may lead to unexpected matches, especially if [`PinyinNotation::AsciiFirstLetter`] is enabled, and also lower performance.
         #[builder(default = false)]
         mix_lang: bool,
-        #[cfg(feature = "pinyin")] pinyin: Option<PinyinMatchConfig<'a>>,
-        #[cfg(feature = "romaji")] romaji: Option<RomajiMatchConfig<'a>>,
+        #[cfg(feature = "pinyin")] mut pinyin: Option<PinyinMatchConfig<'a>>,
+        #[cfg(feature = "romaji")] mut romaji: Option<RomajiMatchConfig<'a>>,
     ) -> Self {
+        if let Some(lang_only) = pattern.lang_only {
+            if matches!(lang_only, LangOnly::Pinyin | LangOnly::Romaji) {
+                plain = None;
+            }
+            #[cfg(feature = "pinyin")]
+            if matches!(lang_only, LangOnly::English | LangOnly::Romaji) {
+                pinyin = None;
+            }
+            #[cfg(feature = "romaji")]
+            if matches!(lang_only, LangOnly::English | LangOnly::Pinyin) {
+                romaji = None;
+            }
+        }
+
+        let pattern = pattern.pattern;
         let pattern_bytes = pattern.as_bytes().to_owned();
         let pattern: String = pattern.char_index_strs().map(|(_, c, _)| c).collect();
 
@@ -593,7 +616,7 @@ where
     }
 }
 
-impl<'a, 'f1, HaystackStr, S: ib_matcher_builder::State> IbMatcherBuilder<'a, 'f1, HaystackStr, S>
+impl<'a, HaystackStr, S: ib_matcher_builder::State> IbMatcherBuilder<'a, HaystackStr, S>
 where
     HaystackStr: EncodedStr + ?Sized,
 {
@@ -603,7 +626,7 @@ where
     pub fn case_insensitive(
         self,
         case_insensitive: bool,
-    ) -> IbMatcherBuilder<'a, 'f1, HaystackStr, ib_matcher_builder::SetPlain<S>>
+    ) -> IbMatcherBuilder<'a, HaystackStr, ib_matcher_builder::SetPlain<S>>
     where
         S::Plain: ib_matcher_builder::IsUnset,
     {
