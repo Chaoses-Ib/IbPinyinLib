@@ -88,8 +88,8 @@ where
 {
     // state_mod(vis = "pub(crate)")
     #[builder]
-    pub fn new(
-        #[builder(start_fn, into)] pattern: Pattern<'a, HaystackStr>,
+    pub fn new<'p>(
+        #[builder(start_fn, into)] pattern: Pattern<'p, HaystackStr>,
 
         /// For more advanced control over the analysis, use [`IbMatcherBuilder::analyze_config`].
         #[builder(default = false)]
@@ -616,7 +616,7 @@ where
     }
 }
 
-impl<'a, HaystackStr, S: ib_matcher_builder::State> IbMatcherBuilder<'a, HaystackStr, S>
+impl<'a, 'p, HaystackStr, S: ib_matcher_builder::State> IbMatcherBuilder<'a, 'p, HaystackStr, S>
 where
     HaystackStr: EncodedStr + ?Sized,
 {
@@ -626,7 +626,7 @@ where
     pub fn case_insensitive(
         self,
         case_insensitive: bool,
-    ) -> IbMatcherBuilder<'a, HaystackStr, ib_matcher_builder::SetPlain<S>>
+    ) -> IbMatcherBuilder<'a, 'p, HaystackStr, ib_matcher_builder::SetPlain<S>>
     where
         S::Plain: ib_matcher_builder::IsUnset,
     {
