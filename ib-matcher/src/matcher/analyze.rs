@@ -42,6 +42,7 @@ pub(crate) struct PatternAnalyzer<'a> {
     #[cfg(feature = "romaji")]
     romaji: Option<&'a RomajiMatchConfig<'a>>,
 
+    traversal_count: usize,
     #[cfg(test)]
     min_haystack_chars: usize,
     /// TODO: Per lang len when `mix_lang` is false
@@ -51,6 +52,13 @@ pub(crate) struct PatternAnalyzer<'a> {
 
 #[bon]
 impl<'a> PatternAnalyzer<'a> {
+    /// - 100: 280 us (~1400 find 5, faster if >9333 haystacks)
+    /// - 1000: 2.7 ms
+    /// - 10000: 26.7 ms
+    /// - 100000: 42.6 ms
+    /// - 1000000: 42.6 ms
+    const TRAVERSAL_LIMIT: usize = 100;
+
     #[builder]
     pub fn new(
         #[builder(start_fn)] pattern: &'a str,
@@ -69,13 +77,13 @@ impl<'a> PatternAnalyzer<'a> {
             pinyin_result: Default::default(),
             #[cfg(feature = "romaji")]
             romaji,
+            traversal_count: 0,
             #[cfg(test)]
             min_haystack_chars: 0,
             min_haystack_len: 0,
         }
     }
 
-    #[cfg(test)]
     fn analyze_default(&mut self) {
         self.analyze(PatternAnalyzeConfig::default());
     }
@@ -113,7 +121,16 @@ impl<'a> PatternAnalyzer<'a> {
                 self.pinyin_result.used_notations = PinyinNotation::empty();
             }
 
+            self.traversal_count = 0;
             self.sub_analyze(self.pattern, 0, 0);
+            #[cfg(test)]
+            println!(
+                "traversal_count: {}, min_haystack_chars: {}, min_haystack_len: {}",
+                self.traversal_count, self.min_haystack_chars, self.min_haystack_len
+            );
+            if self.traversal_count > Self::TRAVERSAL_LIMIT {
+                self.analyze_default();
+            }
         } else {
             #[cfg(feature = "pinyin")]
             {
@@ -146,6 +163,11 @@ impl<'a> PatternAnalyzer<'a> {
     }
 
     fn sub_analyze(&mut self, pattern: &str, depth: usize, min_len: usize) {
+        self.traversal_count += 1;
+        if self.traversal_count > Self::TRAVERSAL_LIMIT {
+            return;
+        }
+
         if pattern.is_empty() {
             self.set_min_haystack_chars(depth);
             self.set_min_haystack_len(min_len);
@@ -156,6 +178,8 @@ impl<'a> PatternAnalyzer<'a> {
             return;
         }
         let c = pattern.chars().next().unwrap();
+
+        // TODO: Memoization?
 
         let mut any_matched_single_char = false;
         #[cfg(feature = "pinyin")]
@@ -209,6 +233,9 @@ impl<'a> PatternAnalyzer<'a> {
                     );
 
                     self.sub_analyze(&pattern[matched.len()..], depth + 1, min_len);
+                    if self.traversal_count > Self::TRAVERSAL_LIMIT {
+                        return;
+                    }
                 }
             }
         }

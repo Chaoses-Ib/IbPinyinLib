@@ -76,6 +76,10 @@ name = "regex"
 harness = false
 # cargo bench --bench regex --features regex
 
+[[bench]]
+name = "analyze"
+harness = false
+
 [package.metadata.docs.rs]
 # We want to document all features.
 all-features = true
