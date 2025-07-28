@@ -23,6 +23,8 @@ pub const WORD_ROMAJI_MAX_LEN: usize = 60;
 
 // pub static WORDS: &[&str] = &[];
 // pub static WORDS: &[&str] = include!("words.rs");
+#[cfg(not(all(feature = "compress-words", test)))]
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) static WORDS: &str = include_str!("words.in.txt");
 
 // pub static WORD_ROMAJIS: &[&[&str]] = &[&["onaji", "onajiku"], &["dou"]];

@@ -10,7 +10,10 @@ repository.workspace = true
 license.workspace = true
 
 [features]
+default = ["compress-words"]
 
+## Binary size (and memory usage) -696 KiB (771 KiB if zstd is already used), romanizer build time +1.1 ms.
+compress-words = ["dep:include-bytes-zstd"]
 
 doc = ["dep:document-features"]
 
@@ -19,6 +22,7 @@ bon = "3"
 daachorse = "1"
 document-features = { version = "0.2", optional = true }
 ib-unicode = { version = "0.1", path = "../ib-unicode" }
+include-bytes-zstd = { version = "0.1", optional = true }
 
 [[bench]]
 name = "romaji"

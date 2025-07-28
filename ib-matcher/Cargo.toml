@@ -13,14 +13,16 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["perf"]
+default = ["perf", "romaji-compress-words"]
 
 ## Chinese pinyin match support.
 pinyin = ["dep:arraystring", "dep:bitflags"]
 ## Japanese romaji match support.
 ##
-## The dictionary will take ~5.5 MiB in the binary at the moment, much larger than pinyin's.
+## The dictionary will take ~4.8 MiB (5.5 MiB without compression) in the binary at the moment, much larger than pinyin's.
 romaji = ["dep:ib-romaji"]
+## Binary size (and memory usage) -696 KiB (771 KiB if zstd is already used), romanizer build time +1.1 ms.
+romaji-compress-words = ["ib-romaji?/compress-words"]
 
 ## Pattern syntax support. See [`syntax`] for details.
 syntax = []
@@ -52,7 +54,7 @@ arraystring = { version = "0.3", optional = true }
 bitflags = { version = "2", optional = true }
 bon = "3"
 document-features = { version = "0.2", optional = true }
-ib-romaji = { version = "0.1.1", optional = true, path = "../ib-romaji" }
+ib-romaji = { version = "0.1.1", default-features = false, optional = true, path = "../ib-romaji" }
 ib-unicode = { version = "0.1", path = "../ib-unicode" }
 itertools = "0.14"
 # TODO: perf-dfa-full

@@ -51,7 +51,14 @@ impl HepburnRomanizer {
         // // }));
 
         // memchr is as fast as std, but harder to work with
+        #[cfg(not(feature = "compress-words"))]
         let words = data::WORDS.split('\n');
+        #[cfg(feature = "compress-words")]
+        let words = include_bytes_zstd::include_bytes_zstd!("src/data/words.in.txt", 22);
+        #[cfg(feature = "compress-words")]
+        let words = words
+            .split(|&b| b == b'\n')
+            .map(|b| unsafe { str::from_utf8_unchecked(b) });
 
         // let mut ac = AhoCorasick::builder();
         // ac.start_kind(StartKind::Anchored)
